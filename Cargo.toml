@@ -1,0 +1,19 @@
+[package]
+name = "near-indexer-for-wallet"
+version = "0.1.0"
+authors = ["Near Inc <hello@nearprotocol.com>"]
+edition = "2018"
+
+[dependencies]
+actix = "0.9"
+bigdecimal = "0.1.0"
+diesel = { version = "1.4.4", features = ["postgres", "numeric", "serde_json"] }
+dotenv = "0.15.0"
+r2d2 = "0.8.8"
+serde_json = "1.0.55"
+tokio = { version = "0.2", features = ["full"] }
+tokio-diesel = "0.3.0"
+
+near-indexer = { git = "https://github.com/nearprotocol/nearcore" }
+# Required until https://github.com/nearprotocol/nearcore/pull/3000 merged
+neard = { git = "https://github.com/nearprotocol/nearcore" }
