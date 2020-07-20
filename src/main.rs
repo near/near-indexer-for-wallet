@@ -1,8 +1,8 @@
 use std::env;
+use std::time::Duration;
 
-use bigdecimal::BigDecimal;
-// use num_traits::cast::FromPrimitive;
 use tokio::sync::mpsc;
+use tokio::time;
 
 use diesel::{
     prelude::*,
@@ -14,89 +14,26 @@ extern crate dotenv;
 use dotenv::dotenv;
 use tokio_diesel::*;
 
-
-use neard::NearConfig; // Required until https://github.com/nearprotocol/nearcore/pull/3000 merged
 use near_indexer;
+
 mod schema;
-use schema::access_keys;
+mod db;
+use db::{AccessKey};
+use db::enums::{ActionEnum, StatusEnum, PermissionEnum};
 
-const ADD: &str = "ADD";
-const DELETE: &str = "DELETE";
-const PENDING: &str = "PENDING";
-const SUCCESS: &str = "SUCCESS";
-const FAILED: &str = "FAILED";
-const FUNCTION_CALL: &str = "FUNCTION_CALL";
-const FULL_ACCESS: &str = "FULL_ACCESS";
-
-#[derive(Insertable, Queryable)]
-struct AccessKey {
-    public_key: String,
-    account_id: String,
-    action: &'static str,
-    status: &'static str,
-    receipt_hash: String,
-    block_height: BigDecimal,
-    permission: &'static str,
-}
-
-impl AccessKey {
-    pub fn from_receipt_view(
-        receipt: &near_indexer::near_primitives::views::ReceiptView,
-        block_height: u64,
-    ) -> Vec<Self> {
-        let mut access_keys: Vec<Self> = vec![];
-        if let near_indexer::near_primitives::views::ReceiptEnumView::Action { actions, .. } =
-            &receipt.receipt
-        {
-            for action in actions {
-                let access_key = match action {
-                    near_indexer::near_primitives::views::ActionView::AddKey {
-                        public_key,
-                        access_key,
-                    } => Self {
-                        public_key: public_key.to_string(),
-                        account_id: receipt.receiver_id.to_string(),
-                        action: ADD,
-                        status: PENDING,
-                        receipt_hash: receipt.receipt_id.to_string(),
-                        block_height: block_height.into(),
-                        permission: match access_key.permission {
-                            near_indexer::near_primitives::views::AccessKeyPermissionView::FullAccess => {
-                                FULL_ACCESS
-                            },
-                            near_indexer::near_primitives::views::AccessKeyPermissionView::FunctionCall { .. } => {
-                                FUNCTION_CALL
-                            },
-                        },
-                    },
-                    near_indexer::near_primitives::views::ActionView::DeleteKey { public_key } => Self {
-                        public_key: public_key.to_string(),
-                        account_id: receipt.receiver_id.to_string(),
-                        action: DELETE,
-                        status: PENDING,
-                        receipt_hash: receipt.receipt_id.to_string(),
-                        block_height: block_height.into(),
-                        permission: "",
-                    },
-                    _ => continue,
-                };
-                access_keys.push(access_key);
-            }
-        }
-        access_keys
-    }
-}
+const INTERVAL: Duration = Duration::from_millis(100);
+const TIMES_TO_RETRY: u8 = 10;
 
 fn establish_connection() -> Pool<ConnectionManager<PgConnection>> {
     dotenv().ok();
 
-    let database_url = env::var("NEAR_INDEXER_FOR_WALLET_DATABASE_URL")
-        .expect("NEAR_INDEXER_FOR_WALLET_DATABASE_URL must be set in .env file");
+    let database_url = env::var("DATABASE_URL")
+        .expect("DATABASE_URL must be set in .env file");
     let manager = ConnectionManager::<PgConnection>::new(&database_url);
     Pool::builder().build(manager).expect(&format!("Error connecting to {}", database_url))
 }
 
-async fn handle_genesis_public_keys(near_config: NearConfig) { // TODO: Replace with near_indexer::NearConfig once https://github.com/nearprotocol/nearcore/pull/3000 merged
+async fn handle_genesis_public_keys(near_config: near_indexer::NearConfig) {
     let pool = establish_connection();
     let genesis_height = near_config.genesis.config.genesis_height.clone();
     let access_keys = near_config.genesis.records.as_ref()
@@ -109,13 +46,13 @@ async fn handle_genesis_public_keys(near_config: NearConfig) { // TODO: Replace 
         Some(AccessKey {
             public_key: public_key.to_string(),
             account_id: account_id.to_string(),
-            action: ADD,
-            status: SUCCESS,
+            action: ActionEnum::Add,
+            status: StatusEnum::Success,
             receipt_hash: "genesis".to_string(),
             block_height: genesis_height.into(),
             permission: match access_key.permission {
-                near_indexer::near_primitives::account::AccessKeyPermission::FullAccess => FULL_ACCESS,
-                near_indexer::near_primitives::account::AccessKeyPermission::FunctionCall(_) => FUNCTION_CALL,
+                near_indexer::near_primitives::account::AccessKeyPermission::FullAccess => PermissionEnum::FullAccess,
+                near_indexer::near_primitives::account::AccessKeyPermission::FunctionCall(_) => PermissionEnum::FunctionCall,
             }
         })
     } else { None }).collect::<Vec<AccessKey>>();
@@ -144,45 +81,53 @@ async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) 
             })
             .collect::<Vec<&near_indexer::near_primitives::views::ExecutionOutcomeWithIdView>>();
 
-        diesel::update(
-            schema::access_keys::table.filter(
-                schema::access_keys::dsl::receipt_hash.eq_any(
-                    receipt_outcomes
-                        .iter()
-                        .filter_map(|outcome| match &outcome.outcome.status {
-                            near_indexer::near_primitives::views::ExecutionStatusView::Failure(
-                                _,
-                            ) => Some(outcome.id.to_string()),
-                            _ => None,
-                        })
-                        .collect::<Vec<String>>(),
+        for _ in 1..=TIMES_TO_RETRY {
+            match diesel::update(
+                schema::access_keys::table.filter(
+                    schema::access_keys::dsl::receipt_hash.eq_any(
+                        receipt_outcomes
+                            .iter()
+                            .filter_map(|outcome| match &outcome.outcome.status {
+                                near_indexer::near_primitives::views::ExecutionStatusView::Failure(
+                                    _,
+                                ) => Some(outcome.id.to_string()),
+                                _ => None,
+                            })
+                            .collect::<Vec<String>>(),
+                    ),
                 ),
-            ),
-        )
-        .set(schema::access_keys::dsl::status.eq(FAILED))
-        .execute_async(&pool)
-        .await
-        .unwrap();
+            )
+            .set(schema::access_keys::dsl::status.eq(StatusEnum::Failed))
+            .execute_async(&pool)
+            .await {
+                Ok(_) => break,
+                Err(_) => time::delay_for(INTERVAL).await,
+            }
+        }
 
-        diesel::update(
-            schema::access_keys::table.filter(
-                schema::access_keys::dsl::receipt_hash.eq_any(
-                    receipt_outcomes
-                        .iter()
-                        .filter_map(|outcome| match &outcome.outcome.status {
-                            near_indexer::near_primitives::views::ExecutionStatusView::SuccessReceiptId(
-                                _,
-                            ) | near_indexer::near_primitives::views::ExecutionStatusView::SuccessValue(_) => Some(outcome.id.to_string()),
-                            _ => None,
-                        })
-                        .collect::<Vec<String>>(),
+        for _ in 1..=TIMES_TO_RETRY {
+            match diesel::update(
+                schema::access_keys::table.filter(
+                    schema::access_keys::dsl::receipt_hash.eq_any(
+                        receipt_outcomes
+                            .iter()
+                            .filter_map(|outcome| match &outcome.outcome.status {
+                                near_indexer::near_primitives::views::ExecutionStatusView::SuccessReceiptId(
+                                    _,
+                                ) | near_indexer::near_primitives::views::ExecutionStatusView::SuccessValue(_) => Some(outcome.id.to_string()),
+                                _ => None,
+                            })
+                            .collect::<Vec<String>>(),
+                    ),
                 ),
-            ),
-        )
-        .set(schema::access_keys::dsl::status.eq(SUCCESS))
-        .execute_async(&pool)
-        .await
-        .unwrap();
+            )
+                .set(schema::access_keys::dsl::status.eq(StatusEnum::Success))
+                .execute_async(&pool)
+                .await {
+                Ok(_) => break,
+                Err(_) => time::delay_for(INTERVAL).await,
+            }
+        }
 
         // Handle receipts
         for chunk in &block.chunks {
@@ -191,14 +136,9 @@ async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) 
                     chunk
                         .receipts
                         .iter()
-                        .filter(|receipt| match receipt.receipt {
-                            near_indexer::near_primitives::views::ReceiptEnumView::Action {
-                                ..
-                            } => true,
-                            _ => false,
-                        })
-                        .map(|receipt| {
-                            AccessKey::from_receipt_view(receipt, block.block.header.height)
+                        .filter_map(|receipt| match receipt.receipt {
+                            near_indexer::near_primitives::views::ReceiptEnumView::Action { .. } => Some(AccessKey::from_receipt_view(receipt, block.block.header.height)),
+                            _ => None,
                         })
                         .flatten()
                         .collect::<Vec<AccessKey>>(),
