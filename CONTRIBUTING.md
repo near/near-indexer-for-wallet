@@ -83,7 +83,13 @@ mod utils;
 
 ### Use Statements
 
-To improve readability, try to avoid importing the individual structs, functions, etc unless they are nonambiguous.
+#### Wildcards
+
+Try to avoid wildcard imports on a module level as they are hard to reason about. Note, it is fine to use them in a limited scope, e.g. inside a function, macro, etc.
+
+#### Module Imports vs Leaf Item Imports
+
+To improve readability, try to avoid importing individual structs, functions, etc unless they are nonambiguous.
 
 We prefer this:
 
