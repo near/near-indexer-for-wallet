@@ -1925,6 +1925,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-diesel",
+ "tracing",
 ]
 
 [[package]]

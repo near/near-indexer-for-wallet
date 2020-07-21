@@ -4,24 +4,20 @@ use std::time::Duration;
 use dotenv::dotenv;
 #[macro_use]
 extern crate diesel;
-use diesel::{
-    r2d2::{ConnectionManager, Pool},
-    ExpressionMethods, PgConnection, QueryDsl,
-};
+use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::{ExpressionMethods, PgConnection, QueryDsl};
 use tokio::sync::mpsc;
 use tokio::time;
 use tokio_diesel::AsyncRunQueryDsl;
+use tracing::error;
 
-use crate::db::{
-    enums::{ActionEnum, StatusEnum},
-    AccessKey,
-};
+use crate::db::enums::{ActionEnum, StatusEnum};
+use crate::db::AccessKey;
 
 mod db;
 mod schema;
 
 const INTERVAL: Duration = Duration::from_millis(100);
-const TIMES_TO_RETRY: u8 = 10;
 
 fn establish_connection() -> Pool<ConnectionManager<PgConnection>> {
     dotenv().ok();
@@ -77,7 +73,7 @@ async fn update_receipt_status(
     status: StatusEnum,
     pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
-    for _ in 1..=TIMES_TO_RETRY {
+    loop {
         match diesel::update(
             schema::access_keys::table
                 .filter(schema::access_keys::dsl::receipt_hash.eq_any(receipt_ids.clone())),
@@ -87,7 +83,14 @@ async fn update_receipt_status(
         .await
         {
             Ok(_) => break,
-            Err(_) => time::delay_for(INTERVAL).await,
+            Err(async_error) => {
+                error!(
+                    target: "indexer_for_wallet", "Failed to update status, retrying in {} milliseconds... \n {:#?}",
+                    INTERVAL.as_millis(),
+                    async_error
+                );
+                time::delay_for(INTERVAL).await
+            }
         }
     }
 }

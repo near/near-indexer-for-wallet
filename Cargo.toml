@@ -14,5 +14,6 @@ r2d2 = "0.8.8"
 serde_json = "1.0.55"
 tokio = { version = "0.2", features = ["sync", "time"] }
 tokio-diesel = "0.3.0"
+tracing = "0.1.13"
 
 near-indexer = { git = "https://github.com/nearprotocol/nearcore" }
