@@ -1,25 +1,24 @@
 use std::env;
 use std::time::Duration;
 
-use tokio::sync::mpsc;
-use tokio::time;
-
-use diesel::{
-    prelude::*,
-    r2d2::{ConnectionManager, Pool},
-};
+use dotenv::dotenv;
 #[macro_use]
 extern crate diesel;
-extern crate dotenv;
-use dotenv::dotenv;
-use tokio_diesel::*;
+use diesel::{
+    r2d2::{ConnectionManager, Pool},
+    ExpressionMethods, PgConnection, QueryDsl,
+};
+use tokio::sync::mpsc;
+use tokio::time;
+use tokio_diesel::AsyncRunQueryDsl;
 
-use near_indexer;
+use crate::db::{
+    enums::{ActionEnum, StatusEnum},
+    AccessKey,
+};
 
 mod db;
 mod schema;
-use db::enums::{ActionEnum, StatusEnum};
-use db::AccessKey;
 
 const INTERVAL: Duration = Duration::from_millis(100);
 const TIMES_TO_RETRY: u8 = 10;
@@ -27,16 +26,17 @@ const TIMES_TO_RETRY: u8 = 10;
 fn establish_connection() -> Pool<ConnectionManager<PgConnection>> {
     dotenv().ok();
 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set in .env file");
+    let database_url = env::var("DATABASE_URL")
+        .unwrap_or_else(|_| panic!("DATABASE_URL must be set in .env file"));
     let manager = ConnectionManager::<PgConnection>::new(&database_url);
     Pool::builder()
         .build(manager)
-        .expect(&format!("Error connecting to {}", database_url))
+        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
 async fn handle_genesis_public_keys(near_config: near_indexer::NearConfig) {
     let pool = establish_connection();
-    let genesis_height = near_config.genesis.config.genesis_height.clone();
+    let genesis_height = near_config.genesis.config.genesis_height;
     let access_keys = near_config
         .genesis
         .records
@@ -72,7 +72,11 @@ async fn handle_genesis_public_keys(near_config: near_indexer::NearConfig) {
         .unwrap();
 }
 
-async fn update_receipt_status(receipt_ids: Vec<String>, status: StatusEnum, pool: &Pool<ConnectionManager<PgConnection>>) {
+async fn update_receipt_status(
+    receipt_ids: Vec<String>,
+    status: StatusEnum,
+    pool: &Pool<ConnectionManager<PgConnection>>,
+) {
     for _ in 1..=TIMES_TO_RETRY {
         match diesel::update(
             schema::access_keys::table
