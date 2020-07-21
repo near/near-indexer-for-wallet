@@ -1,6 +1,6 @@
 Thank you for considering contributing to the NEAR Indexer for Wallet!
 
-We welcome all external contributions. This document outlines the process of contributing to nearcore. 
+We welcome all external contributions. This document outlines the process of contributing to NEAR Indexer for Wallet. 
 For contributing to other repositories, see `CONTRIBUTING.md` in the corresponding repository. 
 For non-technical contributions, such as e.g. content or events, see [this document](https://docs.nearprotocol.com/docs/contribution/contribution-overview).
 
