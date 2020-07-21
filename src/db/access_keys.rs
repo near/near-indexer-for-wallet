@@ -1,6 +1,6 @@
-use bigdecimal::BigDecimal;
+use crate::db::enums::{ActionEnum, PermissionEnum, StatusEnum};
 use crate::schema;
-use crate::db::enums::{ActionEnum, StatusEnum, PermissionEnum};
+use bigdecimal::BigDecimal;
 use schema::access_keys;
 
 #[derive(Insertable, Queryable)]
@@ -21,7 +21,7 @@ impl AccessKey {
     ) -> Vec<Self> {
         let mut access_keys: Vec<Self> = vec![];
         if let near_indexer::near_primitives::views::ReceiptEnumView::Action { actions, .. } =
-        &receipt.receipt
+            &receipt.receipt
         {
             for action in actions {
                 let access_key = match action {
@@ -35,24 +35,19 @@ impl AccessKey {
                         status: StatusEnum::Pending,
                         receipt_hash: receipt.receipt_id.to_string(),
                         block_height: block_height.into(),
-                        permission: match access_key.permission {
-                            near_indexer::near_primitives::views::AccessKeyPermissionView::FullAccess => {
-                                PermissionEnum::FullAccess
-                            },
-                            near_indexer::near_primitives::views::AccessKeyPermissionView::FunctionCall { .. } => {
-                                PermissionEnum::FunctionCall
-                            },
-                        },
+                        permission: (&access_key.permission).into(),
                     },
-                    near_indexer::near_primitives::views::ActionView::DeleteKey { public_key } => Self {
-                        public_key: public_key.to_string(),
-                        account_id: receipt.receiver_id.to_string(),
-                        action: ActionEnum::Delete,
-                        status: StatusEnum::Pending,
-                        receipt_hash: receipt.receipt_id.to_string(),
-                        block_height: block_height.into(),
-                        permission: PermissionEnum::NotApplicable,
-                    },
+                    near_indexer::near_primitives::views::ActionView::DeleteKey { public_key } => {
+                        Self {
+                            public_key: public_key.to_string(),
+                            account_id: receipt.receiver_id.to_string(),
+                            action: ActionEnum::Delete,
+                            status: StatusEnum::Pending,
+                            receipt_hash: receipt.receipt_id.to_string(),
+                            block_height: block_height.into(),
+                            permission: PermissionEnum::NotApplicable,
+                        }
+                    }
                     _ => continue,
                 };
                 access_keys.push(access_key);
