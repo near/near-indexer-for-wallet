@@ -1474,6 +1474,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1920,12 +1929,15 @@ dependencies = [
  "diesel",
  "diesel-derive-enum",
  "dotenv",
+ "futures",
+ "itertools",
  "near-indexer",
  "r2d2",
  "serde_json",
  "tokio",
  "tokio-diesel",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -3292,8 +3304,7 @@ dependencies = [
 [[package]]
 name = "tokio-diesel"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "713f06058e12ed5adb542401b9d20f2b18b3fccf6184c5d77b57a31b3d21cc69"
+source = "git+https://github.com/frol/tokio-diesel/?branch=fix/blocking-get-0.3.0#48d956f7b6a4dd14eaa208eddb7a87e7d73cbb56"
 dependencies = [
  "async-trait",
  "diesel",
