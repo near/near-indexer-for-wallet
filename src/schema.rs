@@ -12,3 +12,18 @@ table! {
         permission -> Permission_type,
     }
 }
+
+table! {
+    use diesel::sql_types::*;
+    use crate::db::enums::*;
+
+    spatial_ref_sys (srid) {
+        srid -> Int4,
+        auth_name -> Nullable<Varchar>,
+        auth_srid -> Nullable<Int4>,
+        srtext -> Nullable<Varchar>,
+        proj4text -> Nullable<Varchar>,
+    }
+}
+
+allow_tables_to_appear_in_same_query!(access_keys, spatial_ref_sys,);
