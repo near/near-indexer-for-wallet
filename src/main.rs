@@ -192,7 +192,7 @@ async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) 
 }
 
 fn main() {
-    let env_filter = EnvFilter::new("tokio_reactor=info,near=info,near=error,stats=info,telemetry=info,indexer_for_wallet=error,indexer_for_wallet=info");
+    let env_filter = EnvFilter::new("tokio_reactor=info,near=info,near=error,stats=info,telemetry=info,indexer_for_wallet=info");
     tracing_subscriber::fmt::Subscriber::builder()
         .with_env_filter(env_filter)
         .with_writer(std::io::stderr)
