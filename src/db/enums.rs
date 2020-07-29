@@ -4,6 +4,7 @@ use near_indexer::near_primitives;
 
 #[derive(Debug, DbEnum, Clone)]
 #[DbValueStyle = "SCREAMING_SNAKE_CASE"]
+#[DieselType = "Access_key_action_type"]
 #[PgType = "access_key_action_type"]
 pub enum AccessKeyAction {
     Add,
@@ -12,6 +13,7 @@ pub enum AccessKeyAction {
 
 #[derive(Debug, DbEnum, Clone, Copy)]
 #[DbValueStyle = "SCREAMING_SNAKE_CASE"]
+#[DieselType = "Execution_status_type"]
 #[PgType = "execution_status_type"]
 pub enum ExecutionStatus {
     Pending,
@@ -21,6 +23,7 @@ pub enum ExecutionStatus {
 
 #[derive(Debug, DbEnum, Clone)]
 #[DbValueStyle = "SCREAMING_SNAKE_CASE"]
+#[DieselType = "Access_key_permission_type"]
 #[PgType = "access_key_permission_type"]
 pub enum AccessKeyPermission {
     /// Used only with AccessKeyAction::Delete

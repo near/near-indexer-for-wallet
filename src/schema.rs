@@ -5,10 +5,10 @@ table! {
     access_keys (public_key, account_id, action, receipt_hash) {
         public_key -> Text,
         account_id -> Text,
-        action -> AccessKeyActionMapping,
-        status -> ExecutionStatusMapping,
+        action -> Access_key_action_type,
+        status -> Execution_status_type,
         receipt_hash -> Text,
         block_height -> Numeric,
-        permission -> AccessKeyPermissionMapping,
+        permission -> Access_key_permission_type,
     }
 }
