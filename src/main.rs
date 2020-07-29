@@ -6,10 +6,13 @@ use dotenv::dotenv;
 extern crate diesel;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::{ExpressionMethods, PgConnection, QueryDsl};
+use futures::stream::StreamExt;
+use itertools::Itertools;
 use tokio::sync::mpsc;
 use tokio::time;
 use tokio_diesel::AsyncRunQueryDsl;
-use tracing::error;
+use tracing::{error, info};
+use tracing_subscriber::EnvFilter;
 
 use crate::db::enums::{ActionEnum, StatusEnum};
 use crate::db::AccessKey;
@@ -18,6 +21,7 @@ mod db;
 mod schema;
 
 const INTERVAL: Duration = Duration::from_millis(100);
+const INDEXER_FOR_WALLET: &str = "indexer_for_wallet";
 
 fn establish_connection() -> Pool<ConnectionManager<PgConnection>> {
     dotenv().ok();
@@ -57,15 +61,42 @@ async fn handle_genesis_public_keys(near_config: near_indexer::NearConfig) {
             } else {
                 None
             }
-        })
-        .collect::<Vec<AccessKey>>();
+        });
 
-    diesel::insert_into(schema::access_keys::table)
-        .values(access_keys)
-        .on_conflict_do_nothing()
-        .execute_async(&pool)
-        .await
-        .unwrap();
+    let chunk_size = 5000;
+    let total_access_key_chunks = access_keys.clone().count() / chunk_size + 1;
+    let slice = access_keys.chunks(chunk_size);
+
+    let insert_genesis_keys: futures::stream::FuturesUnordered<_> = slice
+        .into_iter()
+        .map(|keys| async {
+            let collected_keys = keys.collect::<Vec<AccessKey>>();
+            loop {
+                match diesel::insert_into(schema::access_keys::table)
+                    .values(collected_keys.clone())
+                    .on_conflict_do_nothing()
+                    .execute_async(&pool).await {
+                        Ok(result) => break result,
+                        Err(err) => {
+                            info!(target: INDEXER_FOR_WALLET, "Trying to push genesis access keys failed with: {:?}. Retrying in {} seconds...", err, INTERVAL.as_secs_f32());
+                            time::delay_for(INTERVAL).await;
+                        }
+                    }
+                }
+            })
+        .collect();
+
+    let mut insert_genesis_keys = insert_genesis_keys.enumerate();
+
+    while let Some((index, _result)) = insert_genesis_keys.next().await {
+        info!(
+            target: INDEXER_FOR_WALLET,
+            "Genesis public keys adding {}%",
+            index * 100 / total_access_key_chunks
+        );
+    }
+
+    info!(target: INDEXER_FOR_WALLET, "Genesis public keys handled.");
 }
 
 async fn update_receipt_status(
@@ -101,6 +132,31 @@ async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) 
     while let Some(block) = stream.recv().await {
         eprintln!("Block height {:?}", block.block.header.height);
 
+        // Handle receipts
+        for chunk in &block.chunks {
+            diesel::insert_into(schema::access_keys::table)
+                .values(
+                    chunk
+                        .receipts
+                        .iter()
+                        .filter_map(|receipt| match receipt.receipt {
+                            near_indexer::near_primitives::views::ReceiptEnumView::Action {
+                                ..
+                            } => Some(AccessKey::from_receipt_view(
+                                receipt,
+                                block.block.header.height,
+                            )),
+                            _ => None,
+                        })
+                        .flatten()
+                        .collect::<Vec<AccessKey>>(),
+                )
+                .on_conflict_do_nothing()
+                .execute_async(&pool)
+                .await
+                .unwrap();
+        }
+
         // Handle outcomes
         let receipt_outcomes = &block
             .outcomes
@@ -133,34 +189,23 @@ async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) 
             })
             .collect::<Vec<String>>();
         update_receipt_status(succeeded_receipt_ids, StatusEnum::Success, &pool).await;
-
-        // Handle receipts
-        for chunk in &block.chunks {
-            diesel::insert_into(schema::access_keys::table)
-                .values(
-                    chunk
-                        .receipts
-                        .iter()
-                        .filter_map(|receipt| match receipt.receipt {
-                            near_indexer::near_primitives::views::ReceiptEnumView::Action {
-                                ..
-                            } => Some(AccessKey::from_receipt_view(
-                                receipt,
-                                block.block.header.height,
-                            )),
-                            _ => None,
-                        })
-                        .flatten()
-                        .collect::<Vec<AccessKey>>(),
-                )
-                .execute_async(&pool)
-                .await
-                .unwrap();
-        }
     }
 }
 
 fn main() {
+    let env_filter = EnvFilter::new(
+        "tokio_reactor=info,near=info,near=error,stats=info,telemetry=info,indexer_for_wallet=info",
+    );
+    tracing_subscriber::fmt::Subscriber::builder()
+        .with_env_filter(env_filter)
+        .with_writer(std::io::stderr)
+        .init();
+
+    info!(
+        target: INDEXER_FOR_WALLET,
+        "NEAR Indexer for Wallet started."
+    );
+
     let home_dir: Option<String> = env::args().nth(1);
 
     let indexer = near_indexer::Indexer::new(home_dir.as_ref().map(AsRef::as_ref));

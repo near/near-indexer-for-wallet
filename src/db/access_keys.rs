@@ -3,7 +3,7 @@ use crate::schema;
 use bigdecimal::BigDecimal;
 use schema::access_keys;
 
-#[derive(Insertable, Queryable)]
+#[derive(Insertable, Queryable, Clone)]
 pub(crate) struct AccessKey {
     pub public_key: String,
     pub account_id: String,
