@@ -1,4 +1,4 @@
-use crate::db::enums::{ActionEnum, PermissionEnum, StatusEnum};
+use crate::db::enums::{AccessKeyAction, AccessKeyPermission, ExecutionStatus};
 use crate::schema;
 use bigdecimal::BigDecimal;
 use schema::access_keys;
@@ -7,11 +7,11 @@ use schema::access_keys;
 pub(crate) struct AccessKey {
     pub public_key: String,
     pub account_id: String,
-    pub action: ActionEnum,
-    pub status: StatusEnum,
+    pub action: AccessKeyAction,
+    pub status: ExecutionStatus,
     pub receipt_hash: String,
     pub block_height: BigDecimal,
-    pub permission: PermissionEnum,
+    pub permission: AccessKeyPermission,
 }
 
 impl AccessKey {
@@ -31,8 +31,8 @@ impl AccessKey {
                     } => Self {
                         public_key: public_key.to_string(),
                         account_id: receipt.receiver_id.to_string(),
-                        action: ActionEnum::Add,
-                        status: StatusEnum::Pending,
+                        action: AccessKeyAction::Add,
+                        status: ExecutionStatus::Pending,
                         receipt_hash: receipt.receipt_id.to_string(),
                         block_height: block_height.into(),
                         permission: (&access_key.permission).into(),
@@ -41,11 +41,11 @@ impl AccessKey {
                         Self {
                             public_key: public_key.to_string(),
                             account_id: receipt.receiver_id.to_string(),
-                            action: ActionEnum::Delete,
-                            status: StatusEnum::Pending,
+                            action: AccessKeyAction::Delete,
+                            status: ExecutionStatus::Pending,
                             receipt_hash: receipt.receipt_id.to_string(),
                             block_height: block_height.into(),
-                            permission: PermissionEnum::NotApplicable,
+                            permission: AccessKeyPermission::NotApplicable,
                         }
                     }
                     _ => continue,
