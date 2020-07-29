@@ -64,12 +64,7 @@ async fn handle_genesis_public_keys(near_config: near_indexer::NearConfig) {
         });
 
     let chunk_size = 5000;
-    let total_access_key_chunks = access_keys.clone().count() / chunk_size;
-    let total_access_key_chunks = if total_access_key_chunks > 0 {
-        total_access_key_chunks
-    } else {
-        1
-    };
+    let total_access_key_chunks = access_keys.clone().count() / chunk_size + 1;
     let slice = access_keys.chunks(chunk_size);
 
     let insert_genesis_keys: futures::stream::FuturesUnordered<_> = slice
