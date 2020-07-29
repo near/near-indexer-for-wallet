@@ -14,7 +14,7 @@ use tokio_diesel::AsyncRunQueryDsl;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
-use crate::db::enums::{ActionEnum, StatusEnum};
+use crate::db::enums::{AccessKeyAction, ExecutionStatus};
 use crate::db::AccessKey;
 
 mod db;
@@ -52,8 +52,8 @@ async fn handle_genesis_public_keys(near_config: near_indexer::NearConfig) {
                 Some(AccessKey {
                     public_key: public_key.to_string(),
                     account_id: account_id.to_string(),
-                    action: ActionEnum::Add,
-                    status: StatusEnum::Success,
+                    action: AccessKeyAction::Add,
+                    status: ExecutionStatus::Success,
                     receipt_hash: "genesis".to_string(),
                     block_height: genesis_height.into(),
                     permission: (&access_key.permission).into(),
@@ -101,7 +101,7 @@ async fn handle_genesis_public_keys(near_config: near_indexer::NearConfig) {
 
 async fn update_receipt_status(
     receipt_ids: Vec<String>,
-    status: StatusEnum,
+    status: ExecutionStatus,
     pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
     loop {
@@ -176,7 +176,7 @@ async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) 
                 _ => None,
             })
             .collect::<Vec<String>>();
-        update_receipt_status(failed_receipt_ids, StatusEnum::Failed, &pool).await;
+        update_receipt_status(failed_receipt_ids, ExecutionStatus::Failed, &pool).await;
 
         let succeeded_receipt_ids = receipt_outcomes
             .iter()
@@ -188,7 +188,7 @@ async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) 
                 _ => None,
             })
             .collect::<Vec<String>>();
-        update_receipt_status(succeeded_receipt_ids, StatusEnum::Success, &pool).await;
+        update_receipt_status(succeeded_receipt_ids, ExecutionStatus::Success, &pool).await;
     }
 }
 
