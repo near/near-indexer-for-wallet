@@ -18,7 +18,7 @@ ORDER BY block_height DESC
 LIMIT 1
 ``` 
 
-So if the last `"action"` is `ADD` that the `public_key` exists. If the `"action"` is1 `DELETE` than it doesn't exist anymore.
+So if the last `"action"` is `ADD` then the `public_key` exists. If the `"action"` is `DELETE` than it doesn't exist anymore.
 
 ## Getting started
 
