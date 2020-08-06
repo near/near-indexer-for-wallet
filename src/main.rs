@@ -119,6 +119,11 @@ async fn update_receipt_status(
 async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) {
     let pool = establish_connection();
 
+    info!(
+        target: INDEXER_FOR_WALLET,
+        "NEAR Indexer for Wallet started."
+    );
+
     while let Some(block) = stream.recv().await {
         eprintln!("Block height {:?}", block.block.header.height);
 
@@ -208,10 +213,6 @@ fn main() {
             let stream = indexer.streamer();
             actix::spawn(handle_genesis_public_keys(near_config));
             actix::spawn(listen_blocks(stream));
-            info!(
-                target: INDEXER_FOR_WALLET,
-                "NEAR Indexer for Wallet started."
-            );
             indexer.start();
         }
         SubCommand::Init(config) => near_indexer::init_configs(
