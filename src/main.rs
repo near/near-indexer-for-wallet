@@ -1,7 +1,6 @@
-use std::env;
 use std::time::Duration;
 
-use dotenv::dotenv;
+use clap::derive::Clap;
 #[macro_use]
 extern crate diesel;
 use diesel::r2d2::{ConnectionManager, Pool};
@@ -14,25 +13,16 @@ use tokio_diesel::AsyncRunQueryDsl;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
+use crate::configs::{Opts, SubCommand};
 use crate::db::enums::{AccessKeyAction, ExecutionStatus};
-use crate::db::AccessKey;
+use crate::db::{establish_connection, AccessKey};
 
+mod configs;
 mod db;
 mod schema;
 
 const INTERVAL: Duration = Duration::from_millis(100);
 const INDEXER_FOR_WALLET: &str = "indexer_for_wallet";
-
-fn establish_connection() -> Pool<ConnectionManager<PgConnection>> {
-    dotenv().ok();
-
-    let database_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| panic!("DATABASE_URL must be set in .env file"));
-    let manager = ConnectionManager::<PgConnection>::new(&database_url);
-    Pool::builder()
-        .build(manager)
-        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
-}
 
 async fn handle_genesis_public_keys(near_config: near_indexer::NearConfig) {
     let pool = establish_connection();
@@ -193,6 +183,10 @@ async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) 
 }
 
 fn main() {
+    // We use it to automatically search the for root certificates to perform HTTPS calls
+    // (sending telemetry and downloading genesis)
+    openssl_probe::init_ssl_cert_env_vars();
+
     let env_filter = EnvFilter::new(
         "tokio_reactor=info,near=info,near=error,stats=info,telemetry=info,indexer_for_wallet=info",
     );
@@ -201,17 +195,35 @@ fn main() {
         .with_writer(std::io::stderr)
         .init();
 
-    info!(
-        target: INDEXER_FOR_WALLET,
-        "NEAR Indexer for Wallet started."
-    );
+    let opts: Opts = Opts::parse();
 
-    let home_dir: Option<String> = env::args().nth(1);
+    let home_dir = opts
+        .home_dir
+        .unwrap_or_else(|| std::path::PathBuf::from(near_indexer::get_default_home()));
 
-    let indexer = near_indexer::Indexer::new(home_dir.as_ref().map(AsRef::as_ref));
-    let near_config = indexer.near_config().clone();
-    let stream = indexer.streamer();
-    actix::spawn(handle_genesis_public_keys(near_config));
-    actix::spawn(listen_blocks(stream));
-    indexer.start();
+    match opts.subcmd {
+        SubCommand::Run => {
+            info!(
+                target: INDEXER_FOR_WALLET,
+                "NEAR Indexer for Wallet started."
+            );
+            let indexer = near_indexer::Indexer::new(Some(&home_dir));
+            let near_config = indexer.near_config().clone();
+            let stream = indexer.streamer();
+            actix::spawn(handle_genesis_public_keys(near_config));
+            actix::spawn(listen_blocks(stream));
+            indexer.start();
+        }
+        SubCommand::Init(config) => near_indexer::init_configs(
+            &home_dir,
+            config.chain_id.as_ref().map(AsRef::as_ref),
+            config.account_id.as_ref().map(AsRef::as_ref),
+            config.test_seed.as_ref().map(AsRef::as_ref),
+            config.num_shards,
+            config.fast,
+            config.genesis.as_ref().map(AsRef::as_ref),
+            config.download,
+            config.download_genesis_url.as_ref().map(AsRef::as_ref),
+        ),
+    }
 }
