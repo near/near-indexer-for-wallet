@@ -7,12 +7,14 @@ edition = "2018"
 [dependencies]
 actix = "0.9"
 bigdecimal = "0.1.0"
+clap = "3.0.0-beta.1"
 diesel = { version = "1.4.5", features = ["postgres", "numeric", "serde_json"] }
 # Using hacky diesel-derive-enum https://github.com/adwhit/diesel-derive-enum/issues/52
 diesel-derive-enum = { git = "https://github.com/khorolets/diesel-derive-enum.git", branch = "lookup-hack", features = ["postgres"] }
+dotenv = "0.15.0"
 futures = "0.3.5"
 itertools = "0.9.0"
-dotenv = "0.15.0"
+openssl-probe = { version = "0.1.2" }
 r2d2 = "0.8.8"
 serde_json = "1.0.55"
 tokio = { version = "0.2", features = ["sync", "time"] }
@@ -20,4 +22,4 @@ tokio-diesel = "0.3.0"
 tracing = "0.1.13"
 tracing-subscriber = "0.2.4"
 
-near-indexer = { git = "https://github.com/nearprotocol/nearcore", rev="f80c12792669af633fbb925e253452ae693e33d5" }
+near-indexer = { git = "https://github.com/nearprotocol/nearcore", rev="830c2149fc02ee23e6e26d198ac12b16c1858eeb" }
