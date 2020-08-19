@@ -13,6 +13,8 @@ use tokio_diesel::AsyncRunQueryDsl;
 use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
+use near_chain_configs::GenesisRecords;
+
 use crate::configs::{Opts, SubCommand};
 use crate::db::enums::{AccessKeyAction, ExecutionStatus};
 use crate::db::{establish_connection, AccessKey};
@@ -20,16 +22,28 @@ use crate::db::{establish_connection, AccessKey};
 mod configs;
 mod db;
 mod schema;
+mod state_viewer;
 
 const INTERVAL: Duration = Duration::from_millis(100);
 const INDEXER_FOR_WALLET: &str = "indexer_for_wallet";
 
-async fn handle_genesis_public_keys(near_config: near_indexer::NearConfig) {
+
+async fn access_keys_from_state(home_dir: std::path::PathBuf, near_config: near_indexer::NearConfig) {
+    let store = near_store::create_store(&neard::get_store_path(&home_dir));
+
+    let (runtime, state_roots, header) =
+        state_viewer::load_trie_stop_at_height(store, &home_dir, &near_config, state_viewer::LoadTrieMode::Latest);
+
+    let height = header.height();
+    let new_genesis =
+        state_viewer::state_dump(runtime, state_roots.clone(), header, &near_config.genesis.config);
+
+    handle_genesis_public_keys(new_genesis.records, height).await;
+}
+
+async fn handle_genesis_public_keys(records: GenesisRecords, height: u64) {
     let pool = establish_connection();
-    let genesis_height = near_config.genesis.config.genesis_height;
-    let access_keys = near_config
-        .genesis
-        .records
+    let access_keys = records
         .as_ref()
         .iter()
         .filter_map(|record| {
@@ -45,7 +59,7 @@ async fn handle_genesis_public_keys(near_config: near_indexer::NearConfig) {
                     action: AccessKeyAction::Add,
                     status: ExecutionStatus::Success,
                     receipt_hash: "genesis".to_string(),
-                    block_height: genesis_height.into(),
+                    block_height: height.into(),
                     permission: (&access_key.permission).into(),
                 })
             } else {
@@ -56,6 +70,8 @@ async fn handle_genesis_public_keys(near_config: near_indexer::NearConfig) {
     let chunk_size = 5000;
     let total_access_key_chunks = access_keys.clone().count() / chunk_size + 1;
     let slice = access_keys.chunks(chunk_size);
+
+    diesel::delete(schema::access_keys::table).execute_async(&pool).await.unwrap();
 
     let insert_genesis_keys: futures::stream::FuturesUnordered<_> = slice
         .into_iter()
@@ -209,9 +225,7 @@ fn main() {
     match opts.subcmd {
         SubCommand::Run => {
             let indexer = near_indexer::Indexer::new(Some(&home_dir));
-            let near_config = indexer.near_config().clone();
             let stream = indexer.streamer();
-            actix::spawn(handle_genesis_public_keys(near_config));
             actix::spawn(listen_blocks(stream));
             indexer.start();
         }
@@ -226,5 +240,12 @@ fn main() {
             config.download,
             config.download_genesis_url.as_ref().map(AsRef::as_ref),
         ),
+        SubCommand::DumpState => {
+            let near_config = neard::load_config(&home_dir);
+            actix::run(async move {
+                access_keys_from_state(home_dir, near_config).await;
+                actix::System::current().stop();
+            }).unwrap();
+        }
     }
 }

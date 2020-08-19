@@ -18,6 +18,8 @@ pub(crate) enum SubCommand {
     Run,
     /// Initialize necessary configs
     Init(InitConfigArgs),
+    /// Grab all the Accounts' AccessKeys from the current state to database (warning: replacing data in DB)
+    DumpState,
 }
 
 #[derive(Clap, Debug)]

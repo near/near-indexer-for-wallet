@@ -464,9 +464,9 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.53.2"
+version = "0.54.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bb26d6a69a335b8cb0e7c7e9775cd5666611dc50a37177c3f2cedcfc040e8c8"
+checksum = "f4d49b80beb70d76cdac92f5681e666f9a697c737c4f4117a67229a0386dc736"
 dependencies = [
  "bitflags",
  "cexpr",
@@ -1601,9 +1601,8 @@ dependencies = [
 
 [[package]]
 name = "librocksdb-sys"
-version = "6.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "883213ae3d09bfc3d104aefe94b25ebb183b6f4d3a515b23b14817e1f4854005"
+version = "6.10.2"
+source = "git+https://github.com/nearprotocol/rust-rocksdb?branch=disable-thread#44592812fd12cc2ea5de55af7c8d9bfdeacac692"
 dependencies = [
  "bindgen",
  "cc",
@@ -1787,7 +1786,7 @@ dependencies = [
 [[package]]
 name = "near-actix-utils"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "actix",
 ]
@@ -1795,7 +1794,7 @@ dependencies = [
 [[package]]
 name = "near-chain"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "borsh",
  "cached",
@@ -1823,7 +1822,7 @@ dependencies = [
 [[package]]
 name = "near-chain-configs"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "chrono",
  "derive_more",
@@ -1839,7 +1838,7 @@ dependencies = [
 [[package]]
 name = "near-chunks"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "actix",
  "borsh",
@@ -1861,7 +1860,7 @@ dependencies = [
 [[package]]
 name = "near-client"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "actix",
  "ansi_term",
@@ -1894,7 +1893,7 @@ dependencies = [
 [[package]]
 name = "near-crypto"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "arrayref",
  "blake2",
@@ -1918,7 +1917,7 @@ dependencies = [
 [[package]]
 name = "near-epoch-manager"
 version = "0.0.1"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "borsh",
  "cached",
@@ -1939,7 +1938,7 @@ dependencies = [
 [[package]]
 name = "near-indexer"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "actix",
  "futures",
@@ -1963,7 +1962,11 @@ dependencies = [
  "dotenv",
  "futures",
  "itertools",
+ "near-chain",
+ "near-chain-configs",
  "near-indexer",
+ "near-store",
+ "neard",
  "openssl-probe",
  "r2d2",
  "serde_json",
@@ -1976,7 +1979,7 @@ dependencies = [
 [[package]]
 name = "near-jsonrpc"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "actix",
  "actix-cors",
@@ -2002,7 +2005,7 @@ dependencies = [
 [[package]]
 name = "near-jsonrpc-client"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "actix-web",
  "futures",
@@ -2015,7 +2018,7 @@ dependencies = [
 [[package]]
 name = "near-metrics"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "lazy_static",
  "log",
@@ -2025,7 +2028,7 @@ dependencies = [
 [[package]]
 name = "near-network"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "actix",
  "borsh",
@@ -2054,7 +2057,7 @@ dependencies = [
 [[package]]
 name = "near-pool"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "borsh",
  "near-crypto",
@@ -2065,7 +2068,7 @@ dependencies = [
 [[package]]
 name = "near-primitives"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "base64",
  "borsh",
@@ -2096,7 +2099,7 @@ dependencies = [
 [[package]]
 name = "near-rpc-error-core"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2107,7 +2110,7 @@ dependencies = [
 [[package]]
 name = "near-rpc-error-macro"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "near-rpc-error-core",
  "proc-macro2",
@@ -2120,7 +2123,7 @@ dependencies = [
 [[package]]
 name = "near-runtime-configs"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "near-primitives",
  "near-runtime-fees",
@@ -2131,7 +2134,7 @@ dependencies = [
 [[package]]
 name = "near-runtime-fees"
 version = "1.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "num-rational",
  "serde",
@@ -2140,7 +2143,7 @@ dependencies = [
 [[package]]
 name = "near-store"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "borsh",
  "byteorder",
@@ -2162,7 +2165,7 @@ dependencies = [
 [[package]]
 name = "near-telemetry"
 version = "0.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "actix",
  "actix-web",
@@ -2176,7 +2179,7 @@ dependencies = [
 [[package]]
 name = "near-vm-errors"
 version = "1.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "borsh",
  "near-rpc-error-macro",
@@ -2186,7 +2189,7 @@ dependencies = [
 [[package]]
 name = "near-vm-logic"
 version = "1.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "base64",
  "bs58",
@@ -2201,7 +2204,7 @@ dependencies = [
 [[package]]
 name = "near-vm-runner"
 version = "1.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "cached",
  "near-runtime-fees",
@@ -2216,7 +2219,7 @@ dependencies = [
 [[package]]
 name = "neard"
 version = "1.2.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "actix",
  "actix-web",
@@ -2282,7 +2285,7 @@ dependencies = [
 [[package]]
 name = "node-runtime"
 version = "1.1.0"
-source = "git+https://github.com/nearprotocol/nearcore?rev=830c2149fc02ee23e6e26d198ac12b16c1858eeb#830c2149fc02ee23e6e26d198ac12b16c1858eeb"
+source = "git+https://github.com/nearprotocol/nearcore?rev=c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545#c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545"
 dependencies = [
  "borsh",
  "byteorder",
@@ -2929,8 +2932,7 @@ dependencies = [
 [[package]]
 name = "rocksdb"
 version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61aa17a99a2413cd71c1106691bf59dad7de0cd5099127f90e9d99c429c40d4a"
+source = "git+https://github.com/nearprotocol/rust-rocksdb?branch=disable-thread#44592812fd12cc2ea5de55af7c8d9bfdeacac692"
 dependencies = [
  "libc",
  "librocksdb-sys",
