@@ -30,3 +30,6 @@ near-chain-configs = { git = "https://github.com/nearprotocol/nearcore", rev="c9
 
 #near-indexer = { path = "../nearcore/chain/indexer" }
 #near-store = { path = "../nearcore/core/store" }
+#near-chain = { path = "../nearcore/chain/chain" }
+#neard = { path = "../nearcore/neard" }
+#near-chain-configs = { path = "../nearcore/core/chain-configs" }

@@ -5,6 +5,7 @@ use clap::derive::Clap;
 extern crate diesel;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::{ExpressionMethods, PgConnection, QueryDsl};
+use futures::join;
 use futures::stream::StreamExt;
 use itertools::Itertools;
 use tokio::sync::mpsc;
@@ -105,11 +106,46 @@ async fn handle_genesis_public_keys(records: GenesisRecords, height: u64) {
     info!(target: INDEXER_FOR_WALLET, "Genesis public keys handled.");
 }
 
+async fn insert_receipts(height: u64, chunks: &Vec<near_indexer::near_primitives::views::ChunkView>, pool: &Pool<ConnectionManager<PgConnection>>) {
+
+    let access_keys = chunks
+        .iter()
+        .map(|chunk| &chunk.receipts)
+        .flatten()
+        .filter_map(|receipt| match receipt.receipt {
+            near_indexer::near_primitives::views::ReceiptEnumView::Action {
+                ..
+            } => Some(AccessKey::from_receipt_view(
+                receipt,
+                height,
+            )),
+            _ => None,
+        })
+        .flatten()
+        .collect::<Vec<AccessKey>>();
+
+    info!(
+        target: INDEXER_FOR_WALLET,
+        "Handling receipts related to AccessKey, amount {}", access_keys.len()
+    );
+    if !access_keys.is_empty() {
+        diesel::insert_into(schema::access_keys::table)
+            .values(access_keys)
+            .on_conflict_do_nothing()
+            .execute_async(&pool)
+            .await
+            .unwrap();
+    }
+}
+
 async fn update_receipt_status(
     receipt_ids: Vec<String>,
     status: ExecutionStatus,
     pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
+    info!(target: INDEXER_FOR_WALLET, "update_receipt_status called");
+    if receipt_ids.is_empty() { return (); }
+
     loop {
         match diesel::update(
             schema::access_keys::table
@@ -130,6 +166,45 @@ async fn update_receipt_status(
             }
         }
     }
+    info!(target: INDEXER_FOR_WALLET, "update_receipt_status finished");
+}
+
+async fn handle_outcomes(outcomes: &Vec<near_indexer::Outcome>, pool: &Pool<ConnectionManager<PgConnection>>) {
+    let mut failed_receipt_ids: Vec<String> = vec![];
+    let mut succeeded_receipt_ids: Vec<String> = vec![];
+
+    for outcome in outcomes {
+        match outcome {
+            near_indexer::Outcome::Receipt(execution_outcome) => {
+                match execution_outcome.outcome.status {
+                    near_indexer::near_primitives::views::ExecutionStatusView::Failure(_) => failed_receipt_ids.push(execution_outcome.id.to_string()),
+                    near_indexer::near_primitives::views::ExecutionStatusView::SuccessReceiptId(_)
+                    | near_indexer::near_primitives::views::ExecutionStatusView::SuccessValue(_) => {
+                        succeeded_receipt_ids.push(execution_outcome.id.to_string());
+                    },
+                    _ => {}
+                }
+            },
+            _ => {},
+        }
+    }
+
+    info!(
+        target: INDEXER_FOR_WALLET,
+        "Failed outcomes, amount {}", failed_receipt_ids.len()
+    );
+
+    let update_failed_future = update_receipt_status(failed_receipt_ids, ExecutionStatus::Failed, &pool);
+
+
+    info!(
+        target: INDEXER_FOR_WALLET,
+        "Succeed outcomes, amount {}", succeeded_receipt_ids.len()
+    );
+
+    let update_succeeded_future = update_receipt_status(succeeded_receipt_ids, ExecutionStatus::Success, &pool);
+
+    join!(update_failed_future, update_succeeded_future);
 }
 
 async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) {
@@ -144,62 +219,16 @@ async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) 
         eprintln!("Block height {:?}", block.block.header.height);
 
         // Handle receipts
-        for chunk in &block.chunks {
-            diesel::insert_into(schema::access_keys::table)
-                .values(
-                    chunk
-                        .receipts
-                        .iter()
-                        .filter_map(|receipt| match receipt.receipt {
-                            near_indexer::near_primitives::views::ReceiptEnumView::Action {
-                                ..
-                            } => Some(AccessKey::from_receipt_view(
-                                receipt,
-                                block.block.header.height,
-                            )),
-                            _ => None,
-                        })
-                        .flatten()
-                        .collect::<Vec<AccessKey>>(),
-                )
-                .on_conflict_do_nothing()
-                .execute_async(&pool)
-                .await
-                .unwrap();
-        }
+        let insert_receipts_future = insert_receipts(block.block.header.height, &block.chunks, &pool);
 
         // Handle outcomes
-        let receipt_outcomes = &block
-            .outcomes
-            .iter()
-            .filter_map(|outcome| match outcome {
-                near_indexer::Outcome::Receipt(execution_outcome) => Some(execution_outcome),
-                _ => None,
-            })
-            .collect::<Vec<&near_indexer::near_primitives::views::ExecutionOutcomeWithIdView>>();
+        info!(
+            target: INDEXER_FOR_WALLET,
+            "Handling outcomes, total amount {}", block.outcomes.len()
+        );
+        let handle_outcomes_future = handle_outcomes(&block.outcomes, &pool);
 
-        let failed_receipt_ids = receipt_outcomes
-            .iter()
-            .filter_map(|outcome| match &outcome.outcome.status {
-                near_indexer::near_primitives::views::ExecutionStatusView::Failure(_) => {
-                    Some(outcome.id.to_string())
-                }
-                _ => None,
-            })
-            .collect::<Vec<String>>();
-        update_receipt_status(failed_receipt_ids, ExecutionStatus::Failed, &pool).await;
-
-        let succeeded_receipt_ids = receipt_outcomes
-            .iter()
-            .filter_map(|outcome| match &outcome.outcome.status {
-                near_indexer::near_primitives::views::ExecutionStatusView::SuccessReceiptId(_)
-                | near_indexer::near_primitives::views::ExecutionStatusView::SuccessValue(_) => {
-                    Some(outcome.id.to_string())
-                }
-                _ => None,
-            })
-            .collect::<Vec<String>>();
-        update_receipt_status(succeeded_receipt_ids, ExecutionStatus::Success, &pool).await;
+        join!(insert_receipts_future, handle_outcomes_future);
     }
 }
 
@@ -209,7 +238,7 @@ fn main() {
     openssl_probe::init_ssl_cert_env_vars();
 
     let env_filter = EnvFilter::new(
-        "tokio_reactor=info,near=info,near=error,stats=info,telemetry=info,indexer_for_wallet=info",
+        "tokio_reactor=info,near=info,near=error,stats=info,telemetry=info,indexer_for_wallet=info,indexer=info",
     );
     tracing_subscriber::fmt::Subscriber::builder()
         .with_env_filter(env_filter)
