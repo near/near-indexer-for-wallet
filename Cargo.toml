@@ -22,14 +22,10 @@ tokio-diesel = "0.3.0"
 tracing = "0.1.13"
 tracing-subscriber = "0.2.4"
 
+# Using these dependancies to introduce dump-state command that will replace data in DB with AccessKeys from current state
+# this can be refactored once nearcore is divided to components and `state-viewer` of nearcore is made as lib
 near-indexer = { git = "https://github.com/nearprotocol/nearcore", rev="c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545" }
 near-store = { git = "https://github.com/nearprotocol/nearcore", rev="c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545" }
 near-chain = { git = "https://github.com/nearprotocol/nearcore", rev="c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545" }
 neard = { git = "https://github.com/nearprotocol/nearcore", rev="c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545" }
 near-chain-configs = { git = "https://github.com/nearprotocol/nearcore", rev="c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545" }
-
-#near-indexer = { path = "../nearcore/chain/indexer" }
-#near-store = { path = "../nearcore/core/store" }
-#near-chain = { path = "../nearcore/chain/chain" }
-#neard = { path = "../nearcore/neard" }
-#near-chain-configs = { path = "../nearcore/core/chain-configs" }
