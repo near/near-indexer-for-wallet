@@ -28,7 +28,7 @@ mod state_viewer;
 const INTERVAL: Duration = Duration::from_millis(100);
 const INDEXER_FOR_WALLET: &str = "indexer_for_wallet";
 
-async fn access_keys_from_state(
+async fn dump_state_genesis_records(
     home_dir: std::path::PathBuf,
     near_config: near_indexer::NearConfig,
 ) {
@@ -98,7 +98,7 @@ async fn replace_access_keys_from_dumped_state(
                     .execute_async(&pool).await {
                         Ok(result) => break result,
                         Err(err) => {
-                            info!(target: INDEXER_FOR_WALLET, "Trying to push genesis access keys failed with: {:?}. Retrying in {} seconds...", err, INTERVAL.as_secs_f32());
+                            info!(target: INDEXER_FOR_WALLET, "Trying to push dumped state access keys failed with: {:?}. Retrying in {} seconds...", err, INTERVAL.as_secs_f32());
                             time::delay_for(INTERVAL).await;
                         }
                     }
@@ -111,12 +111,12 @@ async fn replace_access_keys_from_dumped_state(
     while let Some((index, _result)) = insert_genesis_keys.next().await {
         info!(
             target: INDEXER_FOR_WALLET,
-            "Genesis public keys adding {}%",
+            "Dump state public access keys adding {}%",
             index * 100 / total_access_key_chunks
         );
     }
 
-    info!(target: INDEXER_FOR_WALLET, "Genesis public keys handled.");
+    info!(target: INDEXER_FOR_WALLET, "Dumped state public access keys in database successfully replaced.");
 }
 
 async fn insert_receipts(
@@ -290,7 +290,7 @@ fn main() {
         SubCommand::DumpState => {
             let near_config = neard::load_config(&home_dir);
             actix::run(async move {
-                access_keys_from_state(home_dir, near_config).await;
+                dump_state_genesis_records(home_dir, near_config).await;
                 actix::System::current().stop();
             })
             .unwrap();
