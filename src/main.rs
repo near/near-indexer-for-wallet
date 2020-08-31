@@ -11,7 +11,7 @@ use itertools::Itertools;
 use tokio::sync::mpsc;
 use tokio::time;
 use tokio_diesel::AsyncRunQueryDsl;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 use tracing_subscriber::EnvFilter;
 
 use near_chain_configs::GenesisRecords;
@@ -28,9 +28,25 @@ mod state_viewer;
 const INTERVAL: Duration = Duration::from_millis(100);
 const INDEXER_FOR_WALLET: &str = "indexer_for_wallet";
 
-async fn dump_state_genesis_records(
+async fn dump_existing_access_keys(
     home_dir: std::path::PathBuf,
     near_config: near_indexer::NearConfig,
+) {
+    let (records, latest_block_height) = extract_state_as_genesis_records(home_dir, near_config);
+    let pool = establish_connection();
+    diesel::delete(schema::access_keys::table)
+        .execute_async(&pool)
+        .await
+        .unwrap();
+    insert_access_keys_from_dumped_state(records, latest_block_height, &pool).await;
+}
+
+fn extract_state_as_genesis_records(
+    home_dir: std::path::PathBuf,
+    near_config: near_indexer::NearConfig,
+) -> (
+    GenesisRecords,
+    near_indexer::near_primitives::types::BlockHeight,
 ) {
     let store = near_store::create_store(&neard::get_store_path(&home_dir));
 
@@ -49,14 +65,14 @@ async fn dump_state_genesis_records(
         &near_config.genesis.config,
     );
 
-    replace_access_keys_from_dumped_state(dumped_state_genesis.records, latest_block_height).await;
+    (dumped_state_genesis.records, latest_block_height)
 }
 
-async fn replace_access_keys_from_dumped_state(
+async fn insert_access_keys_from_dumped_state(
     records: GenesisRecords,
     height: near_indexer::near_primitives::types::BlockHeight,
+    pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
-    let pool = establish_connection();
     let access_keys = records.as_ref().iter().filter_map(|record| {
         if let near_indexer::near_primitives::state_record::StateRecord::AccessKey {
             account_id,
@@ -81,11 +97,6 @@ async fn replace_access_keys_from_dumped_state(
     let portion_size = 5000;
     let total_access_key_chunks = access_keys.clone().count() / portion_size + 1;
     let access_keys_portion = access_keys.chunks(portion_size);
-
-    diesel::delete(schema::access_keys::table)
-        .execute_async(&pool)
-        .await
-        .unwrap();
 
     let insert_genesis_keys: futures::stream::FuturesUnordered<_> = access_keys_portion
         .into_iter()
@@ -116,7 +127,10 @@ async fn replace_access_keys_from_dumped_state(
         );
     }
 
-    info!(target: INDEXER_FOR_WALLET, "Dumped state public access keys in database successfully replaced.");
+    info!(
+        target: INDEXER_FOR_WALLET,
+        "Dumped state public access keys in database successfully replaced."
+    );
 }
 
 async fn insert_receipts(
@@ -290,7 +304,7 @@ fn main() {
         SubCommand::DumpState => {
             let near_config = neard::load_config(&home_dir);
             actix::run(async move {
-                dump_state_genesis_records(home_dir, near_config).await;
+                dump_existing_access_keys(home_dir, near_config).await;
                 actix::System::current().stop();
             })
             .unwrap();
