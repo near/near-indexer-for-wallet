@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use near_chain::{ChainStore, ChainStoreAccess, RuntimeAdapter};
 use near_chain_configs::{Genesis, GenesisConfig};
-use near_store::{Store, TrieIterator};
-use neard::{NightshadeRuntime};
-use near_indexer::near_primitives::types::{AccountInfo, StateRoot, BlockHeight};
 use near_indexer::near_primitives::block_header::BlockHeader;
 use near_indexer::near_primitives::state_record::StateRecord;
-use near_chain::{ChainStore, ChainStoreAccess, RuntimeAdapter};
+use near_indexer::near_primitives::types::{AccountInfo, BlockHeight, StateRoot};
+use near_store::{Store, TrieIterator};
+use neard::NightshadeRuntime;
 
 #[allow(unused)]
 pub(crate) enum LoadTrieMode {
@@ -50,8 +50,10 @@ pub(crate) fn load_trie_stop_at_height(
                         continue;
                     }
                 };
-                let last_final_block_hash =
-                    *chain_store.get_block_header(&cur_block_hash).unwrap().last_final_block();
+                let last_final_block_hash = *chain_store
+                    .get_block_header(&cur_block_hash)
+                    .unwrap()
+                    .last_final_block();
                 let last_final_block = chain_store.get_block(&last_final_block_hash).unwrap();
                 if last_final_block.header().height() >= height {
                     break last_final_block.clone();
@@ -65,9 +67,16 @@ pub(crate) fn load_trie_stop_at_height(
             let block_hash = chain_store.get_block_hash_by_height(height).unwrap();
             chain_store.get_block(&block_hash).unwrap().clone()
         }
-        LoadTrieMode::Latest => chain_store.get_block(&head.last_block_hash).unwrap().clone(),
+        LoadTrieMode::Latest => chain_store
+            .get_block(&head.last_block_hash)
+            .unwrap()
+            .clone(),
     };
-    let state_roots = last_block.chunks().iter().map(|chunk| chunk.inner.prev_state_root).collect();
+    let state_roots = last_block
+        .chunks()
+        .iter()
+        .map(|chunk| chunk.inner.prev_state_root)
+        .collect();
     (runtime, state_roots, last_block.header().clone())
 }
 
@@ -104,7 +113,11 @@ pub(crate) fn state_dump(
         for item in trie {
             let (key, value) = item.unwrap();
             if let Some(mut sr) = StateRecord::from_raw_key_value(key, value) {
-                if let StateRecord::Account { account_id, account } = &mut sr {
+                if let StateRecord::Account {
+                    account_id,
+                    account,
+                } = &mut sr
+                {
                     if account.locked > 0 {
                         let stake = *validators.get(account_id).map(|(_, s)| s).unwrap_or(&0);
                         account.amount = account.amount + account.locked - stake;
@@ -120,7 +133,11 @@ pub(crate) fn state_dump(
     genesis_config.genesis_height = genesis_height;
     genesis_config.validators = validators
         .into_iter()
-        .map(|(account_id, (public_key, amount))| AccountInfo { account_id, public_key, amount })
+        .map(|(account_id, (public_key, amount))| AccountInfo {
+            account_id,
+            public_key,
+            amount,
+        })
         .collect();
     Genesis::new(genesis_config, records.into())
 }

@@ -28,53 +28,66 @@ mod state_viewer;
 const INTERVAL: Duration = Duration::from_millis(100);
 const INDEXER_FOR_WALLET: &str = "indexer_for_wallet";
 
-
-async fn access_keys_from_state(home_dir: std::path::PathBuf, near_config: near_indexer::NearConfig) {
+async fn access_keys_from_state(
+    home_dir: std::path::PathBuf,
+    near_config: near_indexer::NearConfig,
+) {
     let store = near_store::create_store(&neard::get_store_path(&home_dir));
 
-    let (runtime, state_roots, header) =
-        state_viewer::load_trie_stop_at_height(store, &home_dir, &near_config, state_viewer::LoadTrieMode::Latest);
+    let (runtime, state_roots, latest_block_header) = state_viewer::load_trie_stop_at_height(
+        store,
+        &home_dir,
+        &near_config,
+        state_viewer::LoadTrieMode::Latest,
+    );
 
-    let height = header.height();
-    let new_genesis =
-        state_viewer::state_dump(runtime, state_roots.clone(), header, &near_config.genesis.config);
+    let latest_block_height = latest_block_header.height();
+    let dumped_state_genesis = state_viewer::state_dump(
+        runtime,
+        state_roots,
+        latest_block_header,
+        &near_config.genesis.config,
+    );
 
-    handle_genesis_public_keys(new_genesis.records, height).await;
+    replace_access_keys_from_dumped_state(dumped_state_genesis.records, latest_block_height).await;
 }
 
-async fn handle_genesis_public_keys(records: GenesisRecords, height: u64) {
+async fn replace_access_keys_from_dumped_state(
+    records: GenesisRecords,
+    height: near_indexer::near_primitives::types::BlockHeight,
+) {
     let pool = establish_connection();
-    let access_keys = records
-        .as_ref()
-        .iter()
-        .filter_map(|record| {
-            if let near_indexer::near_primitives::state_record::StateRecord::AccessKey {
-                account_id,
-                public_key,
-                access_key,
-            } = record
-            {
-                Some(AccessKey {
-                    public_key: public_key.to_string(),
-                    account_id: account_id.to_string(),
-                    action: AccessKeyAction::Add,
-                    status: ExecutionStatus::Success,
-                    receipt_hash: "genesis".to_string(),
-                    block_height: height.into(),
-                    permission: (&access_key.permission).into(),
-                })
-            } else {
-                None
-            }
-        });
+    let access_keys = records.as_ref().iter().filter_map(|record| {
+        if let near_indexer::near_primitives::state_record::StateRecord::AccessKey {
+            account_id,
+            public_key,
+            access_key,
+        } = record
+        {
+            Some(AccessKey {
+                public_key: public_key.to_string(),
+                account_id: account_id.to_string(),
+                action: AccessKeyAction::Add,
+                status: ExecutionStatus::Success,
+                receipt_hash: "genesis".to_string(),
+                block_height: height.into(),
+                permission: (&access_key.permission).into(),
+            })
+        } else {
+            None
+        }
+    });
 
-    let chunk_size = 5000;
-    let total_access_key_chunks = access_keys.clone().count() / chunk_size + 1;
-    let slice = access_keys.chunks(chunk_size);
+    let portion_size = 5000;
+    let total_access_key_chunks = access_keys.clone().count() / portion_size + 1;
+    let access_keys_portion = access_keys.chunks(portion_size);
 
-    diesel::delete(schema::access_keys::table).execute_async(&pool).await.unwrap();
+    diesel::delete(schema::access_keys::table)
+        .execute_async(&pool)
+        .await
+        .unwrap();
 
-    let insert_genesis_keys: futures::stream::FuturesUnordered<_> = slice
+    let insert_genesis_keys: futures::stream::FuturesUnordered<_> = access_keys_portion
         .into_iter()
         .map(|keys| async {
             let collected_keys = keys.collect::<Vec<AccessKey>>();
@@ -106,19 +119,19 @@ async fn handle_genesis_public_keys(records: GenesisRecords, height: u64) {
     info!(target: INDEXER_FOR_WALLET, "Genesis public keys handled.");
 }
 
-async fn insert_receipts(height: u64, chunks: &Vec<near_indexer::near_primitives::views::ChunkView>, pool: &Pool<ConnectionManager<PgConnection>>) {
-
+async fn insert_receipts(
+    height: near_indexer::near_primitives::types::BlockHeight,
+    chunks: &[near_indexer::near_primitives::views::ChunkView],
+    pool: &Pool<ConnectionManager<PgConnection>>,
+) {
     let access_keys = chunks
         .iter()
         .map(|chunk| &chunk.receipts)
         .flatten()
         .filter_map(|receipt| match receipt.receipt {
-            near_indexer::near_primitives::views::ReceiptEnumView::Action {
-                ..
-            } => Some(AccessKey::from_receipt_view(
-                receipt,
-                height,
-            )),
+            near_indexer::near_primitives::views::ReceiptEnumView::Action { .. } => {
+                Some(AccessKey::from_receipt_view(receipt, height))
+            }
             _ => None,
         })
         .flatten()
@@ -126,7 +139,8 @@ async fn insert_receipts(height: u64, chunks: &Vec<near_indexer::near_primitives
 
     info!(
         target: INDEXER_FOR_WALLET,
-        "Handling receipts related to AccessKey, amount {}", access_keys.len()
+        "Handling receipts related to AccessKey, amount {}",
+        access_keys.len()
     );
     if !access_keys.is_empty() {
         diesel::insert_into(schema::access_keys::table)
@@ -144,7 +158,9 @@ async fn update_receipt_status(
     pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
     info!(target: INDEXER_FOR_WALLET, "update_receipt_status called");
-    if receipt_ids.is_empty() { return (); }
+    if receipt_ids.is_empty() {
+        return;
+    }
 
     loop {
         match diesel::update(
@@ -169,40 +185,40 @@ async fn update_receipt_status(
     info!(target: INDEXER_FOR_WALLET, "update_receipt_status finished");
 }
 
-async fn handle_outcomes(outcomes: &Vec<near_indexer::Outcome>, pool: &Pool<ConnectionManager<PgConnection>>) {
+async fn handle_outcomes(
+    outcomes: &[near_indexer::Outcome],
+    pool: &Pool<ConnectionManager<PgConnection>>,
+) {
     let mut failed_receipt_ids: Vec<String> = vec![];
     let mut succeeded_receipt_ids: Vec<String> = vec![];
 
     for outcome in outcomes {
-        match outcome {
-            near_indexer::Outcome::Receipt(execution_outcome) => {
-                match execution_outcome.outcome.status {
-                    near_indexer::near_primitives::views::ExecutionStatusView::Failure(_) => failed_receipt_ids.push(execution_outcome.id.to_string()),
-                    near_indexer::near_primitives::views::ExecutionStatusView::SuccessReceiptId(_)
-                    | near_indexer::near_primitives::views::ExecutionStatusView::SuccessValue(_) => {
-                        succeeded_receipt_ids.push(execution_outcome.id.to_string());
-                    },
-                    _ => {}
+        if let near_indexer::Outcome::Receipt(execution_outcome) = outcome {
+            match execution_outcome.outcome.status {
+                near_indexer::near_primitives::views::ExecutionStatusView::Failure(_) => {
+                    failed_receipt_ids.push(execution_outcome.id.to_string())
                 }
-            },
-            _ => {},
+                near_indexer::near_primitives::views::ExecutionStatusView::SuccessReceiptId(_)
+                | near_indexer::near_primitives::views::ExecutionStatusView::SuccessValue(_) => {
+                    succeeded_receipt_ids.push(execution_outcome.id.to_string());
+                }
+                _ => {}
+            }
         }
     }
 
     info!(
         target: INDEXER_FOR_WALLET,
-        "Failed outcomes, amount {}", failed_receipt_ids.len()
+        "Outomes. Failed amount: {}, Succeeded amount: {}",
+        failed_receipt_ids.len(),
+        succeeded_receipt_ids.len()
     );
 
-    let update_failed_future = update_receipt_status(failed_receipt_ids, ExecutionStatus::Failed, &pool);
+    let update_failed_future =
+        update_receipt_status(failed_receipt_ids, ExecutionStatus::Failed, &pool);
 
-
-    info!(
-        target: INDEXER_FOR_WALLET,
-        "Succeed outcomes, amount {}", succeeded_receipt_ids.len()
-    );
-
-    let update_succeeded_future = update_receipt_status(succeeded_receipt_ids, ExecutionStatus::Success, &pool);
+    let update_succeeded_future =
+        update_receipt_status(succeeded_receipt_ids, ExecutionStatus::Success, &pool);
 
     join!(update_failed_future, update_succeeded_future);
 }
@@ -219,12 +235,14 @@ async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) 
         eprintln!("Block height {:?}", block.block.header.height);
 
         // Handle receipts
-        let insert_receipts_future = insert_receipts(block.block.header.height, &block.chunks, &pool);
+        let insert_receipts_future =
+            insert_receipts(block.block.header.height, &block.chunks, &pool);
 
         // Handle outcomes
         info!(
             target: INDEXER_FOR_WALLET,
-            "Handling outcomes, total amount {}", block.outcomes.len()
+            "Handling outcomes, total amount {}",
+            block.outcomes.len()
         );
         let handle_outcomes_future = handle_outcomes(&block.outcomes, &pool);
 
@@ -274,7 +292,8 @@ fn main() {
             actix::run(async move {
                 access_keys_from_state(home_dir, near_config).await;
                 actix::System::current().stop();
-            }).unwrap();
+            })
+            .unwrap();
         }
     }
 }
