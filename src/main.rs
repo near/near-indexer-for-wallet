@@ -196,7 +196,7 @@ async fn update_receipt_status(
             }
         }
     }
-    info!(target: INDEXER_FOR_WALLET, "update_receipt_status finished");
+    debug!(target: INDEXER_FOR_WALLET, "update_receipt_status finished");
 }
 
 async fn handle_outcomes(
