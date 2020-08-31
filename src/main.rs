@@ -157,7 +157,7 @@ async fn update_receipt_status(
     status: ExecutionStatus,
     pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
-    info!(target: INDEXER_FOR_WALLET, "update_receipt_status called");
+    debug!(target: INDEXER_FOR_WALLET, "update_receipt_status called");
     if receipt_ids.is_empty() {
         return;
     }
@@ -209,7 +209,7 @@ async fn handle_outcomes(
 
     info!(
         target: INDEXER_FOR_WALLET,
-        "Outomes. Failed amount: {}, Succeeded amount: {}",
+        "Saving execution outcomes (Failed amount: {}, Succeeded amount: {})",
         failed_receipt_ids.len(),
         succeeded_receipt_ids.len()
     );
