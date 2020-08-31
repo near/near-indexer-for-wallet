@@ -76,3 +76,20 @@ $ cargo run --release -- --home-dir ~/.near/testnet run
 ```
 
 After the network is synced, you should see logs of every block height currently received by NEAR Indexer for Wallet. 
+
+## Dump Existing AccessKeys
+
+**NB!** This is a workaround to get the proper up to date data. This may change once `nearcore` allow to simplify this process. 
+
+In order to collect the AccessKeys from current state into database (e.g. at the first start of the NEAR Indexer for Wallet node) 
+you need to wait until the node has synced the data and then stop it. Run the `dump-state` command and then start the node again. 
+
+```bash
+$ cargo run --release -- --home-dir ~/.near/testnet dump-state
+```
+
+It shouldn't take long, you'll see the message "Dumped state public access keys in database successfully replaced." after that start the indexer again
+
+```bash
+$ cargo run --release -- --home-dir ~/.near/testnet run
+```

@@ -1,6 +1,6 @@
 [package]
 name = "near-indexer-for-wallet"
-version = "0.1.0"
+version = "1.0.0"
 authors = ["Near Inc <hello@nearprotocol.com>"]
 edition = "2018"
 
@@ -22,4 +22,10 @@ tokio-diesel = "0.3.0"
 tracing = "0.1.13"
 tracing-subscriber = "0.2.4"
 
-near-indexer = { git = "https://github.com/nearprotocol/nearcore", rev="830c2149fc02ee23e6e26d198ac12b16c1858eeb" }
+# Using these dependencies to introduce dump-state command that will replace data in DB with AccessKeys from a current state
+# this can be refactored once nearcore is divided to components and `state-viewer` of nearcore is made as lib
+near-indexer = { git = "https://github.com/nearprotocol/nearcore", rev="c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545" }
+near-store = { git = "https://github.com/nearprotocol/nearcore", rev="c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545" }
+near-chain = { git = "https://github.com/nearprotocol/nearcore", rev="c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545" }
+neard = { git = "https://github.com/nearprotocol/nearcore", rev="c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545" }
+near-chain-configs = { git = "https://github.com/nearprotocol/nearcore", rev="c9c6cc3f3c34781fe118a0b76d1cfb0a36f15545" }
