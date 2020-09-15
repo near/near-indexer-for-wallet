@@ -140,30 +140,26 @@ async fn insert_receipts(
     local_receipts: &[near_indexer::near_primitives::views::ReceiptView],
     pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
-    let mut access_keys: Vec<AccessKey> = local_receipts
+    let access_keys: Vec<AccessKey> = local_receipts
         .iter()
-        .filter_map(|receipt| match receipt.receipt {
+        .flat_map(|receipt| match receipt.receipt {
             near_indexer::near_primitives::views::ReceiptEnumView::Action { .. } => {
-                Some(AccessKey::from_receipt_view(&receipt, height))
+                AccessKey::from_receipt_view(&receipt, height)
             }
-            _ => None,
+            _ => vec![],
         })
-        .flatten()
+        .chain(
+            chunks
+                .iter()
+                .flat_map(|chunk| &chunk.receipts)
+                .flat_map(|receipt| match receipt.receipt {
+                    near_indexer::near_primitives::views::ReceiptEnumView::Action { .. } => {
+                        AccessKey::from_receipt_view(receipt, height)
+                    }
+                    _ => vec![],
+                }),
+        )
         .collect();
-
-    access_keys.extend(
-        chunks
-            .iter()
-            .map(|chunk| &chunk.receipts)
-            .flatten()
-            .filter_map(|receipt| match receipt.receipt {
-                near_indexer::near_primitives::views::ReceiptEnumView::Action { .. } => {
-                    Some(AccessKey::from_receipt_view(receipt, height))
-                }
-                _ => None,
-            })
-            .flatten(),
-    );
 
     info!(
         target: INDEXER_FOR_WALLET,
@@ -181,7 +177,8 @@ async fn insert_receipts(
                 Ok(_) => break,
                 Err(async_error) => {
                     error!(
-                        target: INDEXER_FOR_WALLET, "Failed to insert access keys, retrying in {} milliseconds... \n {:#?}",
+                        target: INDEXER_FOR_WALLET,
+                        "Failed to insert access keys, retrying in {} milliseconds... \n {:#?}",
                         INTERVAL.as_millis(),
                         async_error
                     );
@@ -214,7 +211,8 @@ async fn update_receipt_status(
             Ok(_) => break,
             Err(async_error) => {
                 error!(
-                    target: INDEXER_FOR_WALLET, "Failed to update status, retrying in {} milliseconds... \n {:#?}",
+                    target: INDEXER_FOR_WALLET,
+                    "Failed to update status, retrying in {} milliseconds... \n {:#?}",
                     INTERVAL.as_millis(),
                     async_error
                 );
@@ -244,7 +242,14 @@ async fn handle_outcomes(
             | near_indexer::near_primitives::views::ExecutionStatusView::SuccessValue(_) => {
                 succeeded_receipt_ids.push(outcome.id.to_string());
             }
-            _ => {}
+            near_indexer::near_primitives::views::ExecutionStatusView::Unknown => {
+                error!(
+                    target: INDEXER_FOR_WALLET,
+                    "ExecutionOutcome status Unknown is not expected here ..\n\
+                    {:#?}",
+                    outcome
+                );
+            }
         }
     }
 
