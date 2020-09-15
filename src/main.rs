@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::Duration;
 
 use clap::derive::Clap;
@@ -135,21 +136,30 @@ async fn insert_access_keys_from_dumped_state(
 
 async fn insert_receipts(
     height: near_indexer::near_primitives::types::BlockHeight,
-    chunks: &[near_indexer::near_primitives::views::ChunkView],
+    chunks: &[near_indexer::IndexerChunkView],
+    local_receipts: &[near_indexer::near_primitives::views::ReceiptView],
     pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
-    let access_keys = chunks
+    let access_keys: Vec<AccessKey> = local_receipts
         .iter()
-        .map(|chunk| &chunk.receipts)
-        .flatten()
-        .filter_map(|receipt| match receipt.receipt {
+        .flat_map(|receipt| match receipt.receipt {
             near_indexer::near_primitives::views::ReceiptEnumView::Action { .. } => {
-                Some(AccessKey::from_receipt_view(receipt, height))
+                AccessKey::from_receipt_view(&receipt, height)
             }
-            _ => None,
+            _ => vec![],
         })
-        .flatten()
-        .collect::<Vec<AccessKey>>();
+        .chain(
+            chunks
+                .iter()
+                .flat_map(|chunk| &chunk.receipts)
+                .flat_map(|receipt| match receipt.receipt {
+                    near_indexer::near_primitives::views::ReceiptEnumView::Action { .. } => {
+                        AccessKey::from_receipt_view(receipt, height)
+                    }
+                    _ => vec![],
+                }),
+        )
+        .collect();
 
     info!(
         target: INDEXER_FOR_WALLET,
@@ -157,12 +167,25 @@ async fn insert_receipts(
         access_keys.len()
     );
     if !access_keys.is_empty() {
-        diesel::insert_into(schema::access_keys::table)
-            .values(access_keys)
-            .on_conflict_do_nothing()
-            .execute_async(&pool)
-            .await
-            .unwrap();
+        loop {
+            match diesel::insert_into(schema::access_keys::table)
+                .values(access_keys.clone())
+                .on_conflict_do_nothing()
+                .execute_async(&pool)
+                .await
+            {
+                Ok(_) => break,
+                Err(async_error) => {
+                    error!(
+                        target: INDEXER_FOR_WALLET,
+                        "Failed to insert access keys, retrying in {} milliseconds... \n {:#?}",
+                        INTERVAL.as_millis(),
+                        async_error
+                    );
+                    time::delay_for(INTERVAL).await;
+                }
+            };
+        }
     }
 }
 
@@ -188,7 +211,8 @@ async fn update_receipt_status(
             Ok(_) => break,
             Err(async_error) => {
                 error!(
-                    target: "indexer_for_wallet", "Failed to update status, retrying in {} milliseconds... \n {:#?}",
+                    target: INDEXER_FOR_WALLET,
+                    "Failed to update status, retrying in {} milliseconds... \n {:#?}",
                     INTERVAL.as_millis(),
                     async_error
                 );
@@ -200,23 +224,31 @@ async fn update_receipt_status(
 }
 
 async fn handle_outcomes(
-    outcomes: &[near_indexer::Outcome],
+    outcomes: &HashMap<
+        near_indexer::near_primitives::hash::CryptoHash,
+        near_indexer::near_primitives::views::ExecutionOutcomeWithIdView,
+    >,
     pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
     let mut failed_receipt_ids: Vec<String> = vec![];
     let mut succeeded_receipt_ids: Vec<String> = vec![];
 
-    for outcome in outcomes {
-        if let near_indexer::Outcome::Receipt(execution_outcome) = outcome {
-            match execution_outcome.outcome.status {
-                near_indexer::near_primitives::views::ExecutionStatusView::Failure(_) => {
-                    failed_receipt_ids.push(execution_outcome.id.to_string())
-                }
-                near_indexer::near_primitives::views::ExecutionStatusView::SuccessReceiptId(_)
-                | near_indexer::near_primitives::views::ExecutionStatusView::SuccessValue(_) => {
-                    succeeded_receipt_ids.push(execution_outcome.id.to_string());
-                }
-                _ => {}
+    for outcome in outcomes.values() {
+        match outcome.outcome.status {
+            near_indexer::near_primitives::views::ExecutionStatusView::Failure(_) => {
+                failed_receipt_ids.push(outcome.id.to_string())
+            }
+            near_indexer::near_primitives::views::ExecutionStatusView::SuccessReceiptId(_)
+            | near_indexer::near_primitives::views::ExecutionStatusView::SuccessValue(_) => {
+                succeeded_receipt_ids.push(outcome.id.to_string());
+            }
+            near_indexer::near_primitives::views::ExecutionStatusView::Unknown => {
+                error!(
+                    target: INDEXER_FOR_WALLET,
+                    "ExecutionOutcome status Unknown is not expected here ..\n\
+                    {:#?}",
+                    outcome
+                );
             }
         }
     }
@@ -237,7 +269,7 @@ async fn handle_outcomes(
     join!(update_failed_future, update_succeeded_future);
 }
 
-async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) {
+async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::StreamerMessage>) {
     let pool = establish_connection();
 
     info!(
@@ -249,16 +281,20 @@ async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::BlockResponse>) 
         eprintln!("Block height {:?}", block.block.header.height);
 
         // Handle receipts
-        let insert_receipts_future =
-            insert_receipts(block.block.header.height, &block.chunks, &pool);
+        let insert_receipts_future = insert_receipts(
+            block.block.header.height,
+            &block.chunks,
+            &block.local_receipts,
+            &pool,
+        );
 
         // Handle outcomes
         info!(
             target: INDEXER_FOR_WALLET,
             "Handling outcomes, total amount {}",
-            block.outcomes.len()
+            block.receipt_execution_outcomes.len()
         );
-        let handle_outcomes_future = handle_outcomes(&block.outcomes, &pool);
+        let handle_outcomes_future = handle_outcomes(&block.receipt_execution_outcomes, &pool);
 
         join!(insert_receipts_future, handle_outcomes_future);
     }
@@ -285,7 +321,11 @@ fn main() {
 
     match opts.subcmd {
         SubCommand::Run => {
-            let indexer = near_indexer::Indexer::new(Some(&home_dir));
+            let indexer_config = near_indexer::IndexerConfig {
+                home_dir,
+                sync_mode: near_indexer::SyncModeEnum::FromInterruption,
+            };
+            let indexer = near_indexer::Indexer::new(indexer_config);
             let stream = indexer.streamer();
             actix::spawn(listen_blocks(stream));
             indexer.start();
