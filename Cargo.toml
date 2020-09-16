@@ -24,8 +24,8 @@ tracing-subscriber = "0.2.4"
 
 # Using these dependencies to introduce dump-state command that will replace data in DB with AccessKeys from a current state
 # this can be refactored once nearcore is divided to components and `state-viewer` of nearcore is made as lib
-near-indexer = { git = "https://github.com/nearprotocol/nearcore", rev="b5ea9c34395946055c017ab49af4b736fe26b2eb" }
-near-store = { git = "https://github.com/nearprotocol/nearcore", rev="b5ea9c34395946055c017ab49af4b736fe26b2eb" }
-near-chain = { git = "https://github.com/nearprotocol/nearcore", rev="b5ea9c34395946055c017ab49af4b736fe26b2eb" }
-neard = { git = "https://github.com/nearprotocol/nearcore", rev="b5ea9c34395946055c017ab49af4b736fe26b2eb" }
-near-chain-configs = { git = "https://github.com/nearprotocol/nearcore", rev="b5ea9c34395946055c017ab49af4b736fe26b2eb" }
+near-indexer = { git = "https://github.com/nearprotocol/nearcore", rev="8bf9b050e1173aad3d5cdc31de00f3abfb4a0718" }
+near-store = { git = "https://github.com/nearprotocol/nearcore", rev="8bf9b050e1173aad3d5cdc31de00f3abfb4a0718" }
+near-chain = { git = "https://github.com/nearprotocol/nearcore", rev="8bf9b050e1173aad3d5cdc31de00f3abfb4a0718" }
+neard = { git = "https://github.com/nearprotocol/nearcore", rev="8bf9b050e1173aad3d5cdc31de00f3abfb4a0718" }
+near-chain-configs = { git = "https://github.com/nearprotocol/nearcore", rev="8bf9b050e1173aad3d5cdc31de00f3abfb4a0718" }
