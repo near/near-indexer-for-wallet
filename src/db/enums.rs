@@ -21,6 +21,18 @@ pub enum ExecutionStatus {
     Failed,
 }
 
+impl From<near_primitives::views::ExecutionStatusView> for ExecutionStatus {
+    fn from(status_view: near_primitives::views::ExecutionStatusView) -> Self {
+        match status_view {
+            // Assume Unknown status as Failed for indexer
+            near_primitives::views::ExecutionStatusView::Failure(_)
+            | near_primitives::views::ExecutionStatusView::Unknown => Self::Failed,
+            near_primitives::views::ExecutionStatusView::SuccessReceiptId(_)
+            | near_primitives::views::ExecutionStatusView::SuccessValue(_) => Self::Success,
+        }
+    }
+}
+
 #[derive(Debug, DbEnum, Clone)]
 #[DbValueStyle = "SCREAMING_SNAKE_CASE"]
 #[DieselType = "Access_key_permission_type"]
