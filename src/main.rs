@@ -29,6 +29,12 @@ mod state_viewer;
 const INTERVAL: Duration = Duration::from_millis(100);
 const INDEXER_FOR_WALLET: &str = "indexer_for_wallet";
 
+/// Map Receipt ID to Execution Outcome
+pub type ExecutionOutcomesByReceiptId = HashMap<
+    near_indexer::near_primitives::hash::CryptoHash,
+    near_indexer::near_primitives::views::ExecutionOutcomeWithIdView,
+>;
+
 async fn dump_existing_access_keys(
     home_dir: std::path::PathBuf,
     near_config: near_indexer::NearConfig,
@@ -139,22 +145,15 @@ async fn insert_receipts(
     chunks: &[near_indexer::IndexerChunkView],
     local_receipts: &[near_indexer::near_primitives::views::ReceiptView],
     pool: &Pool<ConnectionManager<PgConnection>>,
-    outcomes: &HashMap<
-        near_indexer::near_primitives::hash::CryptoHash,
-        near_indexer::near_primitives::views::ExecutionOutcomeWithIdView,
-    >,
+    outcomes: &ExecutionOutcomesByReceiptId,
 ) {
     fn receipt_status(
-        outcomes: &HashMap<
-            near_indexer::near_primitives::hash::CryptoHash,
-            near_indexer::near_primitives::views::ExecutionOutcomeWithIdView,
-        >,
+        outcomes: &ExecutionOutcomesByReceiptId,
         receipt_id: &near_indexer::near_primitives::hash::CryptoHash,
     ) -> Option<db::enums::ExecutionStatus> {
-        match outcomes.get(receipt_id) {
-            Some(execution_outcome) => Some(execution_outcome.outcome.status.clone().into()),
-            _ => None,
-        }
+        outcomes
+            .get(receipt_id)
+            .map(|execution_outcome| execution_outcome.outcome.status.clone().into())
     }
     let access_keys: Vec<AccessKey> = local_receipts
         .iter()
@@ -223,8 +222,7 @@ async fn update_receipt_status(
         return;
     }
 
-    let rows_touched: usize;
-    loop {
+    let rows_touched = loop {
         match diesel::update(
             schema::access_keys::table
                 .filter(schema::access_keys::dsl::receipt_hash.eq_any(receipt_ids.clone())),
@@ -234,8 +232,7 @@ async fn update_receipt_status(
         .await
         {
             Ok(res) => {
-                rows_touched = res;
-                break;
+                break res;
             }
             Err(async_error) => {
                 error!(
@@ -247,7 +244,7 @@ async fn update_receipt_status(
                 time::delay_for(INTERVAL).await
             }
         }
-    }
+    };
     if rows_touched != receipt_ids.len() {
         warn!(
             target: INDEXER_FOR_WALLET,
@@ -261,10 +258,7 @@ async fn update_receipt_status(
 }
 
 async fn handle_outcomes(
-    outcomes: &HashMap<
-        near_indexer::near_primitives::hash::CryptoHash,
-        near_indexer::near_primitives::views::ExecutionOutcomeWithIdView,
-    >,
+    outcomes: &ExecutionOutcomesByReceiptId,
     pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
     let mut failed_receipt_ids: Vec<String> = vec![];
@@ -277,7 +271,7 @@ async fn handle_outcomes(
                 succeeded_receipt_ids.push(outcome.id.to_string());
             }
             db::enums::ExecutionStatus::Failed => failed_receipt_ids.push(outcome.id.to_string()),
-            _ => {
+            db::enums::ExecutionStatus::Pending => {
                 warn!(
                     target: INDEXER_FOR_WALLET,
                     "ExecutionOutcome status Pending is not expected here ..\n\
