@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.0
+## 1.1.1
 
 * Update NEAR Indexer framework dependency to newer commit hash
 * Add `From` trait to `db::enums::ExecutionStatus` from `near_primitives::views::ExecutionStatusView`
