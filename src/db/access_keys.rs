@@ -18,6 +18,7 @@ impl AccessKey {
     pub fn from_receipt_view(
         receipt: &near_indexer::near_primitives::views::ReceiptView,
         block_height: u64,
+        status: Option<ExecutionStatus>,
     ) -> Vec<Self> {
         let mut access_keys: Vec<Self> = vec![];
         if let near_indexer::near_primitives::views::ReceiptEnumView::Action { actions, .. } =
@@ -32,7 +33,7 @@ impl AccessKey {
                         public_key: public_key.to_string(),
                         account_id: receipt.receiver_id.to_string(),
                         action: AccessKeyAction::Add,
-                        status: ExecutionStatus::Pending,
+                        status: status.unwrap_or_else(|| ExecutionStatus::Pending),
                         receipt_hash: receipt.receipt_id.to_string(),
                         block_height: block_height.into(),
                         permission: (&access_key.permission).into(),
@@ -42,7 +43,7 @@ impl AccessKey {
                             public_key: public_key.to_string(),
                             account_id: receipt.receiver_id.to_string(),
                             action: AccessKeyAction::Delete,
-                            status: ExecutionStatus::Pending,
+                            status: status.unwrap_or_else(|| ExecutionStatus::Pending),
                             receipt_hash: receipt.receipt_id.to_string(),
                             block_height: block_height.into(),
                             permission: AccessKeyPermission::NotApplicable,
