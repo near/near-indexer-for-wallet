@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.2
+
+* Handle implicit accounts via `Transfer` receipt and 64 length `receiver_id`
+
 ## 1.1.1
 
 * Update NEAR Indexer framework dependency to newer commit hash
