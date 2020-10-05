@@ -52,14 +52,13 @@ impl AccessKey {
                         }
                     }
                     near_indexer::near_primitives::views::ActionView::Transfer { .. } => {
-                        if receipt.receiver_id.len() == 64usize {
-                            if let Ok(public_key) = hex::decode(&receipt.receiver_id) {
-                                let key: near_crypto::PublicKey =
-                                    near_crypto::ED25519PublicKey::try_from(&public_key[..])
-                                        .expect("Valid account name expected")
-                                        .into();
+                        if receipt.receiver_id.len() != 64usize {
+                            continue;
+                        }
+                        if let Ok(public_key_bytes) = hex::decode(&receipt.receiver_id) {
+                            if let Ok(public_key) = near_crypto::ED25519PublicKey::try_from(&public_key_bytes[..]) {
                                 Self {
-                                    public_key: key.to_string(),
+                                    public_key: near_crypto::PublicKey::from(public_key).to_string(),
                                     account_id: receipt.receiver_id.to_string(),
                                     action: AccessKeyAction::Add,
                                     status: status.unwrap_or_else(|| ExecutionStatus::Pending),
@@ -73,7 +72,7 @@ impl AccessKey {
                         } else {
                             continue;
                         }
-                    }
+                    },
                     _ => continue,
                 };
                 access_keys.push(access_key);
