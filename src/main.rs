@@ -145,15 +145,20 @@ async fn insert_receipts(
     chunks: &[near_indexer::IndexerChunkView],
     local_receipts: &[near_indexer::near_primitives::views::ReceiptView],
     pool: &Pool<ConnectionManager<PgConnection>>,
-    outcomes: &ExecutionOutcomesByReceiptId,
+    outcomes: &near_indexer::ExecutionOutcomesWithReceipts,
 ) {
     fn receipt_status(
-        outcomes: &ExecutionOutcomesByReceiptId,
+        outcomes: &near_indexer::ExecutionOutcomesWithReceipts,
         receipt_id: &near_indexer::near_primitives::hash::CryptoHash,
     ) -> Option<db::enums::ExecutionStatus> {
-        outcomes
-            .get(receipt_id)
-            .map(|execution_outcome| execution_outcome.outcome.status.clone().into())
+        outcomes.get(receipt_id).map(|execution_outcome| {
+            execution_outcome
+                .execution_outcome
+                .outcome
+                .status
+                .clone()
+                .into()
+        })
     }
     let access_keys: Vec<AccessKey> = local_receipts
         .iter()
@@ -258,19 +263,22 @@ async fn update_receipt_status(
 }
 
 async fn handle_outcomes(
-    outcomes: &ExecutionOutcomesByReceiptId,
+    outcomes: &near_indexer::ExecutionOutcomesWithReceipts,
     pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
     let mut failed_receipt_ids: Vec<String> = vec![];
     let mut succeeded_receipt_ids: Vec<String> = vec![];
 
     for outcome in outcomes.values() {
-        let status: db::enums::ExecutionStatus = outcome.outcome.status.clone().into();
+        let status: db::enums::ExecutionStatus =
+            outcome.execution_outcome.outcome.status.clone().into();
         match status {
             db::enums::ExecutionStatus::Success => {
-                succeeded_receipt_ids.push(outcome.id.to_string());
+                succeeded_receipt_ids.push(outcome.execution_outcome.id.to_string());
             }
-            db::enums::ExecutionStatus::Failed => failed_receipt_ids.push(outcome.id.to_string()),
+            db::enums::ExecutionStatus::Failed => {
+                failed_receipt_ids.push(outcome.execution_outcome.id.to_string())
+            }
             db::enums::ExecutionStatus::Pending => {
                 warn!(
                     target: INDEXER_FOR_WALLET,

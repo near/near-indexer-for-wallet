@@ -1,9 +1,11 @@
+use std::convert::TryFrom;
+
 use crate::db::enums::{AccessKeyAction, AccessKeyPermission, ExecutionStatus};
 use crate::schema;
 use bigdecimal::BigDecimal;
 use schema::access_keys;
 
-#[derive(Insertable, Queryable, Clone)]
+#[derive(Insertable, Queryable, Clone, Debug)]
 pub(crate) struct AccessKey {
     pub public_key: String,
     pub account_id: String,
@@ -47,6 +49,31 @@ impl AccessKey {
                             receipt_hash: receipt.receipt_id.to_string(),
                             block_height: block_height.into(),
                             permission: AccessKeyPermission::NotApplicable,
+                        }
+                    }
+                    near_indexer::near_primitives::views::ActionView::Transfer { .. } => {
+                        if receipt.receiver_id.len() != 64usize {
+                            continue;
+                        }
+                        if let Ok(public_key_bytes) = hex::decode(&receipt.receiver_id) {
+                            if let Ok(public_key) =
+                                near_crypto::ED25519PublicKey::try_from(&public_key_bytes[..])
+                            {
+                                Self {
+                                    public_key: near_crypto::PublicKey::from(public_key)
+                                        .to_string(),
+                                    account_id: receipt.receiver_id.to_string(),
+                                    action: AccessKeyAction::Add,
+                                    status: status.unwrap_or_else(|| ExecutionStatus::Pending),
+                                    receipt_hash: receipt.receipt_id.to_string(),
+                                    block_height: block_height.into(),
+                                    permission: AccessKeyPermission::FullAccess,
+                                }
+                            } else {
+                                continue;
+                            }
+                        } else {
+                            continue;
                         }
                     }
                     _ => continue,
