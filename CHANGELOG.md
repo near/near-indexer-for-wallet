@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.1.3
+
+* Upgrade `nearcore` dependency
+
 ## 1.1.2
 
 * Handle implicit accounts via `Transfer` receipt and 64 length `receiver_id`
