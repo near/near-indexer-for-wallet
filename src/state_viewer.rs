@@ -75,7 +75,7 @@ pub(crate) fn load_trie_stop_at_height(
     let state_roots = last_block
         .chunks()
         .iter()
-        .map(|chunk| chunk.inner.prev_state_root)
+        .map(|chunk| chunk.prev_state_root())
         .collect();
     (runtime, state_roots, last_block.header().clone())
 }
