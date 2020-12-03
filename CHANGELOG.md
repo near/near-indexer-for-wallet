@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.0
+
+* Upgrade `nearcore` dependency that includes NEAR Indexer Framework of version 0.7.0 
+with bunch of breaking changes 
+* Update the flow according to that changes
+* Limit spawned processes to 100 by using buffer_unordered
+
 ## 1.1.3
 
 * Upgrade `nearcore` dependency

@@ -6,8 +6,7 @@ use clap::Clap;
 extern crate diesel;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::{ExpressionMethods, PgConnection, QueryDsl};
-use futures::join;
-use futures::stream::StreamExt;
+use futures::{join, StreamExt};
 use itertools::Itertools;
 use tokio::sync::mpsc;
 use tokio::time;
@@ -143,50 +142,42 @@ async fn insert_access_keys_from_dumped_state(
 async fn insert_receipts(
     height: near_indexer::near_primitives::types::BlockHeight,
     chunks: &[near_indexer::IndexerChunkView],
-    local_receipts: &[near_indexer::near_primitives::views::ReceiptView],
     pool: &Pool<ConnectionManager<PgConnection>>,
-    outcomes: &near_indexer::ExecutionOutcomesWithReceipts,
 ) {
+    let outcomes = chunks.iter().flat_map(|chunk| {
+        chunk.receipt_execution_outcomes.iter().map(|outcome| {
+            (
+                outcome.execution_outcome.id.to_string(),
+                db::enums::ExecutionStatus::from(outcome.execution_outcome.outcome.status.clone()),
+            )
+        })
+    });
+    let outcomes: std::collections::HashMap<String, db::enums::ExecutionStatus> =
+        outcomes.collect();
+
     fn receipt_status(
-        outcomes: &near_indexer::ExecutionOutcomesWithReceipts,
+        outcomes: &std::collections::HashMap<String, db::enums::ExecutionStatus>,
         receipt_id: &near_indexer::near_primitives::hash::CryptoHash,
     ) -> Option<db::enums::ExecutionStatus> {
-        outcomes.get(receipt_id).map(|execution_outcome| {
-            execution_outcome
-                .execution_outcome
-                .outcome
-                .status
-                .clone()
-                .into()
-        })
+        if let Some(status) = outcomes.get(receipt_id.to_string().as_str()) {
+            status.clone().into()
+        } else {
+            None
+        }
     }
-    let access_keys: Vec<AccessKey> = local_receipts
+    let access_keys: Vec<AccessKey> = chunks
         .iter()
+        .flat_map(|chunk| &chunk.receipts)
         .flat_map(|receipt| match receipt.receipt {
             near_indexer::near_primitives::views::ReceiptEnumView::Action { .. } => {
                 AccessKey::from_receipt_view(
-                    &receipt,
+                    receipt,
                     height,
                     receipt_status(&outcomes, &receipt.receipt_id),
                 )
             }
             _ => vec![],
         })
-        .chain(
-            chunks
-                .iter()
-                .flat_map(|chunk| &chunk.receipts)
-                .flat_map(|receipt| match receipt.receipt {
-                    near_indexer::near_primitives::views::ReceiptEnumView::Action { .. } => {
-                        AccessKey::from_receipt_view(
-                            receipt,
-                            height,
-                            receipt_status(&outcomes, &receipt.receipt_id),
-                        )
-                    }
-                    _ => vec![],
-                }),
-        )
         .collect();
 
     info!(
@@ -263,13 +254,13 @@ async fn update_receipt_status(
 }
 
 async fn handle_outcomes(
-    outcomes: &near_indexer::ExecutionOutcomesWithReceipts,
+    outcomes: Vec<&near_indexer::IndexerExecutionOutcomeWithReceipt>,
     pool: &Pool<ConnectionManager<PgConnection>>,
 ) {
     let mut failed_receipt_ids: Vec<String> = vec![];
     let mut succeeded_receipt_ids: Vec<String> = vec![];
 
-    for outcome in outcomes.values() {
+    for outcome in outcomes {
         let status: db::enums::ExecutionStatus =
             outcome.execution_outcome.outcome.status.clone().into();
         match status {
@@ -306,36 +297,53 @@ async fn handle_outcomes(
     join!(update_failed_future, update_succeeded_future);
 }
 
-async fn listen_blocks(mut stream: mpsc::Receiver<near_indexer::StreamerMessage>) {
-    let pool = establish_connection();
+async fn handle_message(
+    pool: std::sync::Arc<Pool<ConnectionManager<PgConnection>>>,
+    streamer_message: near_indexer::StreamerMessage,
+) {
+    info!(
+        target: INDEXER_FOR_WALLET,
+        "Block height {:?}", streamer_message.block.header.height
+    );
+    let receipts_future = insert_receipts(
+        streamer_message.block.header.height,
+        &streamer_message.chunks,
+        &pool,
+    );
 
+    info!(
+        target: INDEXER_FOR_WALLET,
+        "Handling outcomes, total amount {}",
+        &streamer_message
+            .chunks
+            .iter()
+            .map(|chunk| chunk.receipt_execution_outcomes.len())
+            .sum::<usize>()
+    );
+    let outcomes_future = handle_outcomes(
+        streamer_message
+            .chunks
+            .iter()
+            .flat_map(|chunk| &chunk.receipt_execution_outcomes)
+            .collect(),
+        &pool,
+    );
+
+    join!(receipts_future, outcomes_future);
+}
+
+async fn listen_blocks(stream: mpsc::Receiver<near_indexer::StreamerMessage>) {
+    let pool = std::sync::Arc::new(establish_connection());
     info!(
         target: INDEXER_FOR_WALLET,
         "NEAR Indexer for Wallet started."
     );
 
-    while let Some(block) = stream.recv().await {
-        eprintln!("Block height {:?}", block.block.header.height);
+    let mut handle_messages = stream
+        .map(|streamer_message| handle_message(pool.clone(), streamer_message))
+        .buffer_unordered(100);
 
-        // Handle receipts
-        let insert_receipts_future = insert_receipts(
-            block.block.header.height,
-            &block.chunks,
-            &block.local_receipts,
-            &pool,
-            &block.receipt_execution_outcomes,
-        );
-
-        // Handle outcomes
-        info!(
-            target: INDEXER_FOR_WALLET,
-            "Handling outcomes, total amount {}",
-            block.receipt_execution_outcomes.len()
-        );
-        let handle_outcomes_future = handle_outcomes(&block.receipt_execution_outcomes, &pool);
-
-        join!(insert_receipts_future, handle_outcomes_future);
-    }
+    while let Some(_handled_message) = handle_messages.next().await {}
 }
 
 fn main() {
@@ -362,6 +370,7 @@ fn main() {
             let indexer_config = near_indexer::IndexerConfig {
                 home_dir,
                 sync_mode: near_indexer::SyncModeEnum::FromInterruption,
+                await_for_node_synced: near_indexer::AwaitForNodeSyncedEnum::WaitForFullSync,
             };
             let indexer = near_indexer::Indexer::new(indexer_config);
             let stream = indexer.streamer();
