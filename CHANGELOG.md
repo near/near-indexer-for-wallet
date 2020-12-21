@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.1
+
+* Upgrade `nearcore` dependency
+
 ## 1.2.0
 
 * Upgrade `nearcore` dependency that includes NEAR Indexer Framework of version 0.7.0 
