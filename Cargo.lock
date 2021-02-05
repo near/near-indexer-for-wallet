@@ -2184,7 +2184,7 @@ dependencies = [
 
 [[package]]
 name = "near-indexer-for-wallet"
-version = "1.2.1"
+version = "1.3.0"
 dependencies = [
  "actix",
  "actix-diesel",

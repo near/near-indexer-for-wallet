@@ -4,12 +4,12 @@ use std::time::Duration;
 use clap::Clap;
 #[macro_use]
 extern crate diesel;
+use actix_diesel::dsl::AsyncRunQueryDsl;
 use diesel::{ExpressionMethods, PgConnection, QueryDsl};
 use futures::{join, StreamExt};
 use itertools::Itertools;
 use tokio::sync::mpsc;
 use tokio::time;
-use actix_diesel::dsl::AsyncRunQueryDsl;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 
@@ -377,7 +377,8 @@ fn main() {
                     let indexer = near_indexer::Indexer::new(indexer_config);
                     let stream = indexer.streamer();
                     actix::spawn(listen_blocks(stream));
-                }).unwrap();
+                })
+                .unwrap();
         }
         SubCommand::Init(config) => near_indexer::init_configs(
             &home_dir,
