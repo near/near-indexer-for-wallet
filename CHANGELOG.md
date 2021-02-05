@@ -1,13 +1,19 @@
 # Changelog
 
+## 1.3.0
+
+* Upgrade `nearcore` dependency
+* Now runtime is being created in the Indexer not in the Indexer Framework (0.8.0)
+* Migrate from `tokio-diesel` to `actix-diesel` after upgrade `tokio` and `actix` dependency
+
 ## 1.2.1
 
 * Upgrade `nearcore` dependency
 
 ## 1.2.0
 
-* Upgrade `nearcore` dependency that includes NEAR Indexer Framework of version 0.7.0 
-with bunch of breaking changes 
+* Upgrade `nearcore` dependency that includes NEAR Indexer Framework of version 0.7.0
+with bunch of breaking changes
 * Update the flow according to that changes
 * Limit spawned processes to 100 by using buffer_unordered
 
@@ -29,9 +35,9 @@ with bunch of breaking changes
 
 ## 1.1.0
 
-* Update dependency of NEAR Indexer framework to version `0.2.0` 
+* Update dependency of NEAR Indexer framework to version `0.2.0`
 * Handle `local_receipts`
-* Update handling `ExecutionOutcome` according to changes in `0.2.0` NEAR Indexer framework 
+* Update handling `ExecutionOutcome` according to changes in `0.2.0` NEAR Indexer framework
 
 ## 1.0.0
 
