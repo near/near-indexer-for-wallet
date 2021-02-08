@@ -4,13 +4,12 @@ use std::time::Duration;
 use clap::Clap;
 #[macro_use]
 extern crate diesel;
-use diesel::r2d2::{ConnectionManager, Pool};
+use actix_diesel::dsl::AsyncRunQueryDsl;
 use diesel::{ExpressionMethods, PgConnection, QueryDsl};
 use futures::{join, StreamExt};
 use itertools::Itertools;
 use tokio::sync::mpsc;
 use tokio::time;
-use tokio_diesel::AsyncRunQueryDsl;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 
@@ -77,7 +76,7 @@ fn extract_state_as_genesis_records(
 async fn insert_access_keys_from_dumped_state(
     records: GenesisRecords,
     height: near_indexer::near_primitives::types::BlockHeight,
-    pool: &Pool<ConnectionManager<PgConnection>>,
+    pool: &actix_diesel::Database<PgConnection>,
 ) {
     let access_keys = records.as_ref().iter().filter_map(|record| {
         if let near_indexer::near_primitives::state_record::StateRecord::AccessKey {
@@ -116,7 +115,7 @@ async fn insert_access_keys_from_dumped_state(
                         Ok(result) => break result,
                         Err(err) => {
                             info!(target: INDEXER_FOR_WALLET, "Trying to push dumped state access keys failed with: {:?}. Retrying in {} seconds...", err, INTERVAL.as_secs_f32());
-                            time::delay_for(INTERVAL).await;
+                            time::sleep(INTERVAL).await;
                         }
                     }
                 }
@@ -142,7 +141,7 @@ async fn insert_access_keys_from_dumped_state(
 async fn insert_receipts(
     height: near_indexer::near_primitives::types::BlockHeight,
     chunks: &[near_indexer::IndexerChunkView],
-    pool: &Pool<ConnectionManager<PgConnection>>,
+    pool: &actix_diesel::Database<PgConnection>,
 ) {
     let outcomes = chunks.iter().flat_map(|chunk| {
         chunk.receipt_execution_outcomes.iter().map(|outcome| {
@@ -201,7 +200,7 @@ async fn insert_receipts(
                         INTERVAL.as_millis(),
                         async_error
                     );
-                    time::delay_for(INTERVAL).await;
+                    time::sleep(INTERVAL).await;
                 }
             };
         }
@@ -211,7 +210,7 @@ async fn insert_receipts(
 async fn update_receipt_status(
     receipt_ids: Vec<String>,
     status: ExecutionStatus,
-    pool: &Pool<ConnectionManager<PgConnection>>,
+    pool: &actix_diesel::Database<PgConnection>,
 ) {
     debug!(target: INDEXER_FOR_WALLET, "update_receipt_status called");
     if receipt_ids.is_empty() {
@@ -237,7 +236,7 @@ async fn update_receipt_status(
                     INTERVAL.as_millis(),
                     async_error
                 );
-                time::delay_for(INTERVAL).await
+                time::sleep(INTERVAL).await
             }
         }
     };
@@ -255,7 +254,7 @@ async fn update_receipt_status(
 
 async fn handle_outcomes(
     outcomes: Vec<&near_indexer::IndexerExecutionOutcomeWithReceipt>,
-    pool: &Pool<ConnectionManager<PgConnection>>,
+    pool: &actix_diesel::Database<PgConnection>,
 ) {
     let mut failed_receipt_ids: Vec<String> = vec![];
     let mut succeeded_receipt_ids: Vec<String> = vec![];
@@ -298,7 +297,7 @@ async fn handle_outcomes(
 }
 
 async fn handle_message(
-    pool: std::sync::Arc<Pool<ConnectionManager<PgConnection>>>,
+    pool: std::sync::Arc<actix_diesel::Database<PgConnection>>,
     streamer_message: near_indexer::StreamerMessage,
 ) {
     info!(
@@ -339,7 +338,7 @@ async fn listen_blocks(stream: mpsc::Receiver<near_indexer::StreamerMessage>) {
         "NEAR Indexer for Wallet started."
     );
 
-    let mut handle_messages = stream
+    let mut handle_messages = tokio_stream::wrappers::ReceiverStream::new(stream)
         .map(|streamer_message| handle_message(pool.clone(), streamer_message))
         .buffer_unordered(100);
 
@@ -372,10 +371,14 @@ fn main() {
                 sync_mode: near_indexer::SyncModeEnum::FromInterruption,
                 await_for_node_synced: near_indexer::AwaitForNodeSyncedEnum::WaitForFullSync,
             };
-            let indexer = near_indexer::Indexer::new(indexer_config);
-            let stream = indexer.streamer();
-            actix::spawn(listen_blocks(stream));
-            indexer.start();
+            actix::System::builder()
+                .stop_on_panic(true)
+                .run(move || {
+                    let indexer = near_indexer::Indexer::new(indexer_config);
+                    let stream = indexer.streamer();
+                    actix::spawn(listen_blocks(stream));
+                })
+                .unwrap();
         }
         SubCommand::Init(config) => near_indexer::init_configs(
             &home_dir,
