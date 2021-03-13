@@ -25,6 +25,12 @@ So if the last `"action"` is `ADD` then the `public_key` exists. If the `"action
 Before you proceed, make sure you have the following software installed:
 * [rustup](https://rustup.rs/) or Rust version that is mentioned in `rust-toolchain` file in the root of [nearcore](https://github.com/nearprotocol/nearcore) project.
 
+Install `libpq-dev` dependency
+
+```bash
+$ sudo apt install libpq-dev
+```
+
 Clone this repository and open the project folder
 
 ```bash
