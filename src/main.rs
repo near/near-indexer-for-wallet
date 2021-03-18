@@ -371,14 +371,13 @@ fn main() {
                 sync_mode: near_indexer::SyncModeEnum::FromInterruption,
                 await_for_node_synced: near_indexer::AwaitForNodeSyncedEnum::WaitForFullSync,
             };
-            actix::System::builder()
-                .stop_on_panic(true)
-                .run(move || {
-                    let indexer = near_indexer::Indexer::new(indexer_config);
-                    let stream = indexer.streamer();
-                    actix::spawn(listen_blocks(stream));
-                })
-                .unwrap();
+            let system = actix::System::new();
+            system.block_on(async move {
+                let indexer = near_indexer::Indexer::new(indexer_config);
+                let stream = indexer.streamer();
+                actix::spawn(listen_blocks(stream));
+            });
+            system.run().unwrap();
         }
         SubCommand::Init(config) => near_indexer::init_configs(
             &home_dir,
