@@ -1,3 +1,5 @@
+**DEPRECATED. This indexer is deprecated and no longer will be suppoted**
+
 # NEAR Indexer for Wallet
 
 NEAR Indexer for Wallet is built on top of [NEAR Indexer microframework](https://github.com/nearprotocol/nearcore/tree/master/chain/indexer) to watch the network and store all the AccessKeys events in the PostgreSQL database. 
