@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.0
+
+* Upgrade `nearcore` dependency
+* Update `dump_state` according to changes in underlying structs on nearcore side
+
+**The way of starting `actix` runtime has changed**
+
 ## 1.3.0
 
 * Upgrade `nearcore` dependency
