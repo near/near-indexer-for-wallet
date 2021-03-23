@@ -1,4 +1,4 @@
-**DEPRECATED. This indexer is deprecated and no longer will be suppoted**
+**DEPRECATED. This indexer is deprecated and no longer will be supported**
 
 # NEAR Indexer for Wallet
 
