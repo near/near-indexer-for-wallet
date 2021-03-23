@@ -1,4 +1,4 @@
-**DEPRECATED. This indexer is deprecated and no longer will be supported**
+**DEPRECATED. This indexer is deprecated and no longer will be supported. Please refer to [NEAR Indexer for Explorer](https://github.com/near/near-indexer-for-explorer)**
 
 # NEAR Indexer for Wallet
 
